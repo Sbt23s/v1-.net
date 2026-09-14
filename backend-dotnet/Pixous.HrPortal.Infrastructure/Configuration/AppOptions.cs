@@ -60,7 +60,15 @@ public sealed class CorsOptions
     /// production this is set from the environment to the deployed frontend.
     /// </summary>
     public string[] AllowedOrigins { get; init; } =
-        ["http://localhost:5174", "http://localhost:3000"];
+        [
+            "https://pixoushrportal.pixous.info",
+            "http://pixoushrportal.pixous.info",
+            "https://www.pixoushrportal.pixous.info",
+            "http://www.pixoushrportal.pixous.info",
+            "http://localhost:5174",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ];
 }
 
 public sealed class StorageOptions

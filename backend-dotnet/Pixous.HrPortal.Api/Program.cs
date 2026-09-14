@@ -205,9 +205,38 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 const string CorsPolicy = "HrPortalCors";
 builder.Services.AddCors(options =>
 {
-    string[] origins = builder.Configuration
+    var configuredOrigins = builder.Configuration
         .GetSection($"{AppOptions.SectionName}:Cors:AllowedOrigins")
-        .Get<string[]>() ?? ["http://localhost:5174", "http://localhost:3000"];
+        .Get<string[]>() ?? [];
+
+    var envCors = Environment.GetEnvironmentVariable("APP_CORS_ALLOWED_ORIGINS")
+        ?? Environment.GetEnvironmentVariable("App__Cors__AllowedOrigins");
+
+    var originsList = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "https://pixoushrportal.pixous.info",
+        "http://pixoushrportal.pixous.info",
+        "https://www.pixoushrportal.pixous.info",
+        "http://www.pixoushrportal.pixous.info",
+        "http://localhost:5174",
+        "http://localhost:5173",
+        "http://localhost:3000"
+    };
+
+    foreach (var o in configuredOrigins)
+    {
+        if (!string.IsNullOrWhiteSpace(o)) originsList.Add(o.Trim());
+    }
+
+    if (!string.IsNullOrWhiteSpace(envCors))
+    {
+        foreach (var o in envCors.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!string.IsNullOrWhiteSpace(o)) originsList.Add(o.Trim());
+        }
+    }
+
+    string[] origins = [.. originsList];
 
     options.AddPolicy(CorsPolicy, policy => policy
         .WithOrigins(origins)
@@ -247,6 +276,10 @@ app.UseMiddleware<ExceptionMiddleware>();
 // Before auth, so a preflight that never carries a token is answered rather
 // than rejected.
 app.UseCors(CorsPolicy);
+
+// Serve static files from wwwroot if present (for unified IIS / Windows hosting)
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Hosted"))
 {
@@ -396,17 +429,36 @@ app.MapFallback(async context =>
 {
     string path = context.Request.Path.Value ?? "/";
 
-    bool isPublic = path == "/"
+    // If an API or WebSocket path is not handled, challenge or 404
+    if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/ws/", StringComparison.OrdinalIgnoreCase))
+    {
+        bool isPublic = publicPrefixes.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        context.Response.StatusCode = isPublic || context.User.Identity?.IsAuthenticated == true
+            ? StatusCodes.Status404NotFound
+            : StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    // If React SPA is deployed in wwwroot (unified Windows/IIS hosting), serve index.html for GET requests
+    string webRoot = app.Environment.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    string indexPath = Path.Combine(webRoot, "index.html");
+    if (HttpMethods.IsGet(context.Request.Method) && File.Exists(indexPath))
+    {
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(indexPath);
+        return;
+    }
+
+    bool isPublicPath = path == "/"
         || publicPrefixes.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 
     // A public path that no handler claimed is a genuine 404; anything else is
     // challenged. Either way AuthChallengeMiddleware writes the body, so the
     // shape stays the container's.
-    context.Response.StatusCode = isPublic || context.User.Identity?.IsAuthenticated == true
+    context.Response.StatusCode = isPublicPath || context.User.Identity?.IsAuthenticated == true
         ? StatusCodes.Status404NotFound
         : StatusCodes.Status401Unauthorized;
-
-    await Task.CompletedTask;
 });
 
 // Run Flyway schema safety check against live database at startup
