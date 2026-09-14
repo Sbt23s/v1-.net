@@ -24,7 +24,7 @@ import dayjs from "dayjs";
 // fonts into the file. The community build silently drops them, so a coloured
 // matrix exported with it arrives in Excel as plain text.
 import * as XLSX from "xlsx-js-style";
-import type { ApiEnvelope, AttendanceRecord, UserSummary, LeaveRequest, PermissionRow } from "@/types";
+import type { ApiEnvelope, AttendanceRecord, UserSummary, LeaveRequest, PermissionRow, HolidayResponse } from "@/types";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -33,12 +33,14 @@ import { useAttendanceLive } from "@/hooks/useAttendanceLive";
 import { DATE_MIN, DATE_MAX } from "@/lib/dates";
 
 type RangeRecord = AttendanceRecord & { _date: string };
-// A displayed row is either a real punch record or a synthesised ABSENT marker.
+// A displayed row is a real punch record, a holiday, or an ABSENT marker.
 type DisplayRow = {
   key: string;
   userId: number;
   _date: string;
   absent: boolean;
+  isHoliday?: boolean;
+  holidayName?: string;
   record?: RangeRecord;
 };
 
@@ -588,6 +590,26 @@ export default function TeamAttendancePage() {
     return map;
   }, [permissionsInRange.data, fromDate, toDate]);
 
+  /** Company holidays — so scheduled holidays are not counted as absent days. */
+  const holidaysInRange = useQuery({
+    queryKey: ["holidays"],
+    retry: false,
+    queryFn: async () =>
+      (await api.get<ApiEnvelope<HolidayResponse[]>>("/org/holidays")).data.data ?? []
+  });
+
+  /** Fast lookup: date (YYYY-MM-DD) -> holiday name */
+  const holidayByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    (holidaysInRange.data ?? []).forEach((h) => {
+      const dateStr = (h.holidayDate || (h as any).date || "").slice(0, 10);
+      if (dateStr) {
+        map.set(dateStr, h.name || "Holiday");
+      }
+    });
+    return map;
+  }, [holidaysInRange.data]);
+
   /**
    * Leave by employee and day, so a date can be looked up directly. A rejected
    * request is kept: it explains a day that really was an absence.
@@ -691,10 +713,14 @@ export default function TeamAttendancePage() {
       // Sat=6, Sun=0. Counting Saturday as worked put an absence against
       // everybody on every Saturday of the range.
       const weekend = dayjs(d).day() === 0 || dayjs(d).day() === 6;
+      const holidayName = holidayByDate.get(d);
       for (const m of members) {
         const rec = byKey.get(`${d}-${m.id}`);
         if (rec) {
           out.push({ key: `p-${d}-${m.id}`, userId: m.id, _date: d, absent: false, record: rec });
+        } else if (holidayName) {
+          // Scheduled holiday: NOT absent!
+          out.push({ key: `h-${d}-${m.id}`, userId: m.id, _date: d, absent: false, isHoliday: true, holidayName });
         } else if (!weekend) {
           // No punch on a working day → absent.
           out.push({ key: `a-${d}-${m.id}`, userId: m.id, _date: d, absent: true });
@@ -713,7 +739,7 @@ export default function TeamAttendancePage() {
       }
       const rec = r.record;
       switch (statusFilter) {
-        case "PRESENT": return !r.absent;
+        case "PRESENT": return !r.absent && !r.isHoliday;
         case "ABSENT": return r.absent;
         case "PUNCH_IN": return !!rec?.punchInAt;
         case "PUNCH_OUT": return !!rec?.punchOutAt;
@@ -728,7 +754,7 @@ export default function TeamAttendancePage() {
       return getUserName(a.userId).localeCompare(getUserName(b.userId));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamAttendance.data, search, statusFilter, teamFilter, scopedMembers, rangeDates, teamMembers.data]);
+  }, [teamAttendance.data, search, statusFilter, teamFilter, scopedMembers, rangeDates, teamMembers.data, holidayByDate]);
 
   /**
    * One line per employee for the whole period: how many days they were present,
@@ -744,7 +770,7 @@ export default function TeamAttendancePage() {
       byUser.get(r.userId)!.push(r);
     });
 
-    const workingDays = rangeDates.filter((d) => dayjs(d).day() !== 0).length;
+    const workingDays = rangeDates.filter((d) => dayjs(d).day() !== 0 && !holidayByDate.has(d)).length;
 
     const members = teamFilter === "all"
       ? scopedMembers
@@ -793,11 +819,12 @@ export default function TeamAttendancePage() {
         const permissionHours = myPermissions.reduce((sum, p) => sum + (Number(p.hours) || 0), 0);
 
         // Days with no punch, split by whether leave explains them.
+        // Scheduled company holidays are NEVER counted as absent days.
         let leaveDays = 0;
         let absentDays = 0;
         const punchedOn = new Set(mine.map((r) => r._date));
         rangeDates.forEach((d) => {
-          if (dayjs(d).day() === 0 || dayjs(d).day() === 6 || punchedOn.has(d)) return;
+          if (dayjs(d).day() === 0 || dayjs(d).day() === 6 || punchedOn.has(d) || holidayByDate.has(d)) return;
           const lv = leaveByKey.get(`${d}-${m.id}`);
           if (lv && (lv.status || "").toUpperCase() === "APPROVED") leaveDays++;
           else absentDays++;
@@ -850,9 +877,10 @@ export default function TeamAttendancePage() {
   // permission changes the early-out count, so a summary computed before the
   // permissions arrive must be recomputed when they do.
   }, [teamAttendance.data, rangeDates, scopedMembers, teamFilter, search, leaveByKey,
-      permissionByKey]);
+      permissionByKey, holidayByDate]);
 
-  const workingDaysInRange = rangeDates.filter((d) => dayjs(d).day() !== 0).length;
+  const workingDaysInRange = rangeDates.filter((d) => dayjs(d).day() !== 0 && !holidayByDate.has(d)).length;
+  const holidaysInRangeCount = rangeDates.filter((d) => dayjs(d).day() !== 0 && holidayByDate.has(d)).length;
 
   const { pageRows, page, setPage, totalPages, pageSize, setPageSize, total } =
     usePagedRows(rows, 20, [search, statusFilter, teamFilter, fromDate, toDate]);
@@ -1006,7 +1034,7 @@ export default function TeamAttendancePage() {
 
       const sWs = XLSX.utils.aoa_to_sheet([
         [`Attendance summary — ${dayjs(fromDate).format("DD MMM YYYY")} to ${dayjs(toDate).format("DD MMM YYYY")}`],
-        [`${summary.length} employee(s) · ${workingDaysInRange} working days (Sundays excluded)`],
+        [`${summary.length} employee(s) · ${workingDaysInRange} working days (Sundays${holidaysInRangeCount > 0 ? " & holidays" : ""} excluded)`],
         [],
         sWanted.map((c) => c.label),
         ...summary.map((s, i) => sWanted.map((c) => c.read(s, i)))
@@ -1045,8 +1073,8 @@ export default function TeamAttendancePage() {
       { key: "status", label: "Status", width: 16, read: (r) => {
           const a = r.record;
           if (!a) {
-            // A day off says why: approved leave, a request still waiting, or a
-            // genuine absence.
+            // A day off says why: holiday, approved leave, or absence.
+            if (r.isHoliday) return `HOLIDAY · ${(r.holidayName || "Holiday").toUpperCase()}`;
             const lv = leaveByKey.get(`${r._date}-${r.userId}`);
             return lv ? `LEAVE · ${(lv.status || "").toUpperCase()}` : "ABSENT";
           }
@@ -1064,6 +1092,7 @@ export default function TeamAttendancePage() {
         read: (r) => r.record ? minutesLabel(r.record.overtimeMinutes) : "—" },
       { key: "remarks", label: "Remarks", width: 26, read: (r) => {
           if (r.record) return remarksFor(r.record).join(", ") || "—";
+          if (r.isHoliday) return r.holidayName || "Holiday";
           const lv = leaveByKey.get(`${r._date}-${r.userId}`);
           return lv ? lv.leaveTypeName : "—";
         } },
@@ -1503,7 +1532,7 @@ export default function TeamAttendancePage() {
               {summary.length} employee{summary.length === 1 ? "" : "s"} ·{" "}
               {dayjs(fromDate).format("DD MMM")} – {dayjs(toDate).format("DD MMM YYYY")} ·{" "}
               <span className="font-semibold text-foreground">{workingDaysInRange} working days</span>{" "}
-              (Sundays excluded)
+              (Sundays{holidaysInRangeCount > 0 ? " & holidays" : ""} excluded)
             </div>
             <div className="overflow-x-auto">
               <table className="data-table min-w-[1500px]">
@@ -1745,6 +1774,13 @@ export default function TeamAttendancePage() {
                             Leave · {(leave.status || "").charAt(0) + (leave.status || "").slice(1).toLowerCase()}
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">{leave.leaveTypeName}</span>
+                        </div>
+                      ) : row.isHoliday ? (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                            Holiday
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">{row.holidayName}</span>
                         </div>
                       ) : (
                         <Badge variant="outline" className={getStatusColor("ABSENT", false)}>ABSENT</Badge>
