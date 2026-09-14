@@ -27,6 +27,7 @@ ConfigureLiveDatabaseFromEnv(builder);
 builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddMemoryCache();
 
 // ---- JSON ----------------------------------------------------------------
 builder.Services

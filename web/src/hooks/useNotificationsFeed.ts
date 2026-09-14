@@ -74,14 +74,14 @@ export function useNotificationsInternal(userId?: number) {
   const feed = useQuery({
     queryKey: ["notifications"],
     queryFn: fetchFeed,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: false
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true
   });
   const unread = useQuery({
     queryKey: ["notifications", "unread"],
     queryFn: fetchUnreadCount,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: false
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true
   });
 
   // Rich, clickable toast for any notification. `id` keeps a notification from

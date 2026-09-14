@@ -4,44 +4,26 @@ using Pixous.HrPortal.Domain.Modules.Auth;
 using Pixous.HrPortal.Domain.Security;
 using Pixous.HrPortal.Infrastructure.Security;
 
+using Microsoft.Extensions.Caching.Memory;
+
 namespace Pixous.HrPortal.Api.Security;
 
 /// <summary>
 /// Loads the signed-in user's permissions from the database and adds them to the
-/// principal, once per request.
-///
-/// This is the piece that makes the authorization checks behave like Spring's,
-/// and it is not an optimisation detail -- getting it wrong silently changes who
-/// can do what.
-///
-/// The access token carries only ROLE CODES:
-///
-///     {"sub":"6","roles":["SUPER_ADMIN"],"userType":"USER", ...}
-///
-/// Spring never reads permissions from the token either. JwtAuthenticationFilter
-/// takes the subject, loads the user, and UserPrincipal builds the authority
-/// list from the database on every request: one "ROLE_&lt;code&gt;" per role, plus
-/// every permission code those roles grant, unprefixed. hasAuthority('X') then
-/// matches the bare code.
-///
-/// So the permissions MUST be resolved per request rather than trusted from the
-/// token, and that has a consequence worth stating plainly: a permission removed
-/// from a role stops working immediately, for sessions already signed in. Had
-/// this read the token instead, a revoked permission would keep working for the
-/// remaining life of that token -- up to four hours -- which is a security
-/// regression that no test of a happy path would have caught.
-///
-/// Roles keep their ROLE_ prefix here so ClaimsPrincipal.IsInRole works; the
-/// permission codes are added bare, under the same claim type the token uses, so
-/// PermissionRequirement finds both in one place.
+/// principal, caching results for 60s to avoid redundant remote DB round-trips.
 /// </summary>
 public sealed class PrincipalEnricher
 {
     private readonly RequestDelegate _next;
+    private readonly IMemoryCache _cache;
 
-    public PrincipalEnricher(RequestDelegate next)
+    private record UserEnrichment(IReadOnlyList<string> Permissions, IReadOnlyList<string> Roles, long? CompanyId);
+    private record AdminEnrichment(bool Enabled);
+
+    public PrincipalEnricher(RequestDelegate next, IMemoryCache cache)
     {
         _next = next;
+        _cache = cache;
     }
 
     public async Task InvokeAsync(HttpContext context, IAuthDal dal, ITechnicalAdminDal admins)
@@ -63,10 +45,6 @@ public sealed class PrincipalEnricher
             return;
         }
 
-        // Which store the subject belongs to. The Java filter branches the same
-        // way: a TECHNICAL_ADMIN token resolves against technical_admins, and
-        // anything else -- including a token minted before the claim existed --
-        // resolves against users.
         string userType = principal.FindFirst("userType")?.Value ?? UserTypes.User;
 
         if (userType == UserTypes.TechnicalAdmin)
@@ -75,30 +53,41 @@ public sealed class PrincipalEnricher
             return;
         }
 
+        // Cache user permissions, roles, and companyId in-memory for 60s.
+        // This eliminates 3 remote MySQL round-trips on EVERY single HTTP request.
+        string cacheKey = $"principal_enrich_user_{userId}";
+        if (!_cache.TryGetValue(cacheKey, out UserEnrichment? enrichment) || enrichment is null)
+        {
+            var permissions = await dal.FindPermissionCodesAsync(userId, context.RequestAborted);
+            var roles = await dal.FindRoleCodesAsync(userId, context.RequestAborted);
+            long? companyId = await dal.FindCompanyIdAsync(userId, context.RequestAborted);
+
+            enrichment = new UserEnrichment(permissions, roles, companyId);
+            _cache.Set(cacheKey, enrichment, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
+                SlidingExpiration = TimeSpan.FromSeconds(30)
+            });
+        }
+
         var identity = new ClaimsIdentity();
 
         // Bare permission codes, for hasAuthority-style checks.
-        foreach (string permission in await dal.FindPermissionCodesAsync(userId, context.RequestAborted))
+        foreach (string permission in enrichment.Permissions)
         {
             identity.AddClaim(new Claim(PermissionHandler.PermissionClaimType, permission));
         }
 
-        // ROLE_-prefixed role codes, for IsInRole. The token already carries the
-        // bare codes under the same claim type, which is what the role-code
-        // readers expect, so both spellings end up present -- exactly as Spring's
-        // authority list holds both.
-        foreach (string role in await dal.FindRoleCodesAsync(userId, context.RequestAborted))
+        // ROLE_-prefixed role codes, for IsInRole.
+        foreach (string role in enrichment.Roles)
         {
             identity.AddClaim(new Claim(ClaimTypes.Role, CurrentUser.RolePrefix + role));
         }
 
-        // The company id is not in the token either, and SecurityUtils reads it
-        // off the principal. Resolved here so a tenant reassignment takes effect
-        // at once, like the permissions above.
-        long? companyId = await dal.FindCompanyIdAsync(userId, context.RequestAborted);
-        if (companyId is not null)
+        // Company id claim.
+        if (enrichment.CompanyId is not null)
         {
-            identity.AddClaim(new Claim(CurrentUser.CompanyIdClaim, companyId.Value.ToString()));
+            identity.AddClaim(new Claim(CurrentUser.CompanyIdClaim, enrichment.CompanyId.Value.ToString()));
         }
 
         principal.AddIdentity(identity);
@@ -126,9 +115,15 @@ public sealed class PrincipalEnricher
     private async Task EnrichTechnicalAdminAsync(HttpContext context, ITechnicalAdminDal admins,
                                                  long adminId)
     {
-        TechnicalAdminRecord? admin = await admins.FindByIdAsync(adminId, context.RequestAborted);
+        string cacheKey = $"principal_enrich_admin_{adminId}";
+        if (!_cache.TryGetValue(cacheKey, out bool enabled))
+        {
+            TechnicalAdminRecord? admin = await admins.FindByIdAsync(adminId, context.RequestAborted);
+            enabled = admin is not null && admin.Enabled;
+            _cache.Set(cacheKey, enabled, TimeSpan.FromSeconds(60));
+        }
 
-        if (admin is not null && admin.Enabled)
+        if (enabled)
         {
             var identity = new ClaimsIdentity();
             identity.AddClaim(new Claim(ClaimTypes.Role, "ROLE_TECHNICAL_ADMIN"));

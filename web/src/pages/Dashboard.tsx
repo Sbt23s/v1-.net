@@ -44,10 +44,20 @@ function AdvancedAnalytics({ userId }: { userId?: number }) {
   const analytics = useQuery({
     queryKey: ["pythonAnalytics", userId],
     enabled: !!userId,
+    retry: false,
     queryFn: async () => {
-      const res = await fetch(`${ANALYTICS_BASE}/api/analytics/employee/${userId}`);
-      if (!res.ok) throw new Error("Analytics service unavailable");
-      return (await res.json()).data;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1500);
+        const res = await fetch(`${ANALYTICS_BASE}/api/analytics/employee/${userId}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (!res.ok) return null;
+        return (await res.json()).data;
+      } catch {
+        return null;
+      }
     }
   });
 

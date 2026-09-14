@@ -69,7 +69,7 @@ public sealed record StompFrame(string Command, IReadOnlyDictionary<string, stri
         string command = head[0].TrimEnd('\r').Trim();
         if (command.Length == 0) return null;
 
-        var headers = new Dictionary<string, string>(StringComparer.Ordinal);
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 1; i < head.Length; i++)
         {
             var line = head[i].TrimEnd('\r');
@@ -136,7 +136,7 @@ public sealed record StompFrame(string Command, IReadOnlyDictionary<string, stri
 
     public static StompFrame Connected(string heartBeat) => new(
         "CONNECTED",
-        new Dictionary<string, string>(StringComparer.Ordinal)
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["version"] = "1.2",
             ["heart-beat"] = heartBeat
@@ -145,7 +145,7 @@ public sealed record StompFrame(string Command, IReadOnlyDictionary<string, stri
 
     public static StompFrame Message(string destination, string subscriptionId, string messageId, string body) => new(
         "MESSAGE",
-        new Dictionary<string, string>(StringComparer.Ordinal)
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["destination"] = destination,
             ["subscription"] = subscriptionId,

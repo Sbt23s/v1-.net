@@ -172,7 +172,8 @@ public static class StompEndpoint
                  * and refusing would change how every client reconnects.
                  * Authorisation happens at SUBSCRIBE instead.
                  */
-                connection.PrincipalName = auth.ResolvePrincipal(frame.Header("Authorization"));
+                connection.PrincipalName = auth.ResolvePrincipal(
+                    frame.Header("Authorization") ?? frame.Header("passcode") ?? frame.Header("token"));
                 await connection.SendFrameAsync(
                     StompFrame.Connected($"{HeartbeatMs},{HeartbeatMs}"), ct);
                 break;
