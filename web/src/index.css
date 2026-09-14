@@ -1,0 +1,714 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Pixous HR Portal — design tokens
+
+  Identity: white surfaces with a green accent. The ground is near-white and
+  stays that way; green marks what is actionable and what is selected, and
+  nothing else. Roughly three quarters of any screen is white or neutral.
+
+  Two greens, not one, and the reason is contrast. The brand green #22C55E
+  carries only 2.28:1 against white text -- below the 4.5:1 a label needs to
+  be readable -- so it cannot be the fill behind a button caption. #15803D
+  reaches 5.02:1 and does the work wherever text sits on green; #22C55E stays
+  as the accent: rings, indicators, icons, hovers, and anything read by shape
+  rather than by the words on top of it.
+*/
+@layer base {
+  :root {
+    /*
+      Pure white, not the faint blue-grey this was.
+
+      210 40% 98% is two points off white with a blue cast in it, and cards
+      sit at 100% on top -- so every card was outlined by a tint the page
+      never asked for, and the whole app read slightly cold. The separation
+      between a card and the page comes from the border and the hairline
+      shadow, which is enough and is what they are for.
+    */
+    --background: 0 0% 100%;
+    --foreground: 144 18% 11%;       /* #17211B */
+
+    --card: 0 0% 100%;
+    --card-foreground: 144 18% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 144 18% 11%;
+
+    /* #15803D, not the brand #22C55E: white text on the brighter green is
+       2.28:1, and this token is the fill behind button labels. */
+    --primary: 142 72% 29%;          /* dark green #15803D */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 144 18% 11%;        /* #17211B — ink with a green cast */
+    --secondary-foreground: 0 0% 100%;
+
+    /* The brand green itself. Rings, active indicators and icons -- places
+       read by shape and position rather than by text laid over them. */
+    --accent: 142 71% 45%;           /* #22C55E */
+    --accent-foreground: 0 0% 100%;
+
+    /* #F0FDF4 — the lightest green in the palette. This token is the resting
+       tint under selected rows, hovers and quiet toolbars, so it is where the
+       green reads without any of it being painted on deliberately. */
+    --muted: 138 76% 97%;
+    --muted-foreground: 215 16% 47%;  /* #64748B */
+
+    --success: 160 84% 39%;          /* emerald — present / approved */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --destructive: 347 77% 50%;      /* rose — late / rejected */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 142 71% 45%;             /* #22C55E — focus, on white */
+
+    --radius: 0.65rem;
+  }
+
+  /* Dark theme: a clean neutral near-black. Surfaces step up in lightness
+     (background -> card -> popover) so panels separate without heavy borders,
+     and semantic colours are brightened to stay legible on black. */
+  .dark {
+    --background: 240 6% 7%;
+    --foreground: 0 0% 100%;
+
+    --card: 240 5% 11%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 240 5% 13%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Brighter than the light theme's #15803D: that green is too dark to
+       read against near-black, and on this ground white text clears 4.5:1
+       comfortably at this lightness. */
+    --primary: 142 65% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 5% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --accent: 142 69% 58%;
+    --accent-foreground: 240 6% 7%;
+
+    --muted: 240 5% 20%;
+    /*
+      Secondary text, and the second half of why dark mode read as flat.
+
+      This was 88% lightness against a 100% foreground -- a twelve-point gap,
+      which on a dark ground is not a gap at all. Every hint, caption, unit and
+      supporting column arrived at effectively the same brightness as the
+      figure it was supporting, so a card with a label, a number and a note
+      under it presented three lines of equal importance.
+
+      72% is quiet enough to recede and still clears WCAG AA on the card
+      surface, which is what secondary text has to do: be skippable without
+      being unreadable when somebody does look.
+    */
+    --muted-foreground: 220 14% 72%;
+
+    --success: 158 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 58%;
+    --warning-foreground: 240 6% 7%;
+
+    --destructive: 350 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 5% 28%;
+    --input: 240 5% 28%;
+    --ring: 142 69% 58%;
+
+    /*
+      The face used for a person's own name in the sidebar. The design calls
+      for Beathcond, which is a licensed font and is not on Google Fonts, so
+      Barlow Condensed 800 italic stands in for it: same heavy, condensed,
+      slanted display character. To use the real thing, drop the .woff2 into
+      web/public/fonts, add an @font-face for it, and change this one line.
+    */
+    --font-identity: "Barlow Condensed";
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /*
+      A backstop, not a fix.
+
+      Tables and charts scroll inside their own containers, which is the right
+      way and is how every table on the site is built. This catches whatever
+      that misses -- one long unbroken employee code, a pasted URL in a
+      comment, a chart that measures itself a few pixels wide of its box -- so
+      a single overflowing element cannot set the whole page sliding sideways
+      on a phone. Nothing legitimate is clipped: anything genuinely wider than
+      the screen already has its own scroller.
+    */
+    overflow-x: hidden;
+  }
+
+  /* An image or a video never widens its column. */
+  img, video, canvas, svg {
+    max-width: 100%;
+  }
+
+  /*
+    Long unbroken strings -- an email, an employee code, a pasted link -- wrap
+    instead of pushing their cell wider than the screen.
+  */
+  p, td, th, dd, dt, li, h1, h2, h3, h4, h5, h6 {
+    overflow-wrap: break-word;
+  }
+
+  /*
+    Dark mode.
+
+    WHAT WAS HERE, AND WHY IT MADE EVERYTHING LOOK THE SAME
+
+    Every element on the page -- body, p, span, div, label, button, th, td, a
+    and all three form controls -- was forced to `font-weight: 600 !important`.
+    The aim was legibility on a dark ground, and light text on dark does look
+    thinner than the same weight the other way round, so the instinct was
+    right. The execution removed the thing it was trying to help with.
+
+    Weight is how a screen says what matters. Setting one weight on everything
+    and marking it !important means a heading, its label, the number underneath
+    and the paragraph beside it all arrive with equal emphasis -- and no
+    `font-bold` in any component can say otherwise, because !important beats
+    every utility class. The page becomes uniformly heavy, which reads as
+    uniformly flat: nothing is bold, because everything is.
+
+    WHAT REPLACES IT
+
+    A floor, not a ceiling. Body copy lifts from 400 to 500, which recovers the
+    thinning that dark grounds cause, and every utility above that is left
+    alone -- so font-medium, font-semibold and font-bold keep their three
+    distinct steps and headings stay heavier than the text they sit above.
+
+    Headings and the small uppercase labels get one step more than they carry
+    in light mode, because those are the elements the thinning costs most and
+    they are the ones a person scans by. Form controls are named separately:
+    they sit on their own surface, and 500 is what makes a typed value read as
+    entered rather than as a placeholder.
+  */
+  .dark {
+    font-weight: 500;
+  }
+
+  .dark body,
+  .dark p,
+  .dark td,
+  .dark li {
+    font-weight: 500;
+  }
+
+  /* The scanned elements, one step up from their light-mode weight. */
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4,
+  .dark th,
+  .dark label,
+  .dark .font-display {
+    font-weight: 700;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    font-weight: 500;
+  }
+
+  /*
+    text-muted-foreground has no override here any more. It used to be pinned
+    to #cbd5e1 with !important, which meant the --muted-foreground token was
+    decorative -- changing it did nothing, because this rule won. The token now
+    carries the value (see the .dark block above) and this class resolves to it
+    like every other colour in the system.
+
+    The literal slate/gray utilities below still need one: those are raw
+    Tailwind palette classes chosen for a light ground, and on a dark one the
+    400-600 range lands too close to the background to read.
+  */
+  .dark .text-slate-400,
+  .dark .text-slate-500,
+  .dark .text-slate-600,
+  .dark .text-gray-400,
+  .dark .text-gray-500,
+  .dark .text-gray-600 {
+    color: #94a3b8;
+  }
+
+  /*
+    Borders. Still lifted -- a 1px line at the token's own value disappears
+    against the card on most screens, and a table with no visible row
+    separation is harder to read than one with slightly heavy ones. Softened
+    from 0.22 to 0.16: the old value drew the grid harder than the content,
+    which is the other failure mode.
+
+    !important stays here alone, because these override Tailwind's own border
+    utilities and there is no weight hierarchy to flatten -- a border is either
+    visible or it is not.
+  */
+  .dark .border-border,
+  .dark .border-border\/50,
+  .dark .border {
+    border-color: rgba(255, 255, 255, 0.16) !important;
+  }
+
+  /* Recharts & Chart Dark Mode High Contrast Overrides */
+  .dark .recharts-cartesian-axis-tick-value,
+  .dark .recharts-text,
+  .dark .recharts-label,
+  .dark .recharts-legend-item-text {
+    fill: #f8fafc !important;
+    color: #f8fafc !important;
+    font-weight: 700 !important;
+  }
+
+  .dark .recharts-cartesian-axis-line,
+  .dark .recharts-cartesian-axis-tick-line {
+    stroke: #64748b !important;
+  }
+
+  .dark .recharts-cartesian-grid line {
+    stroke: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .dark .recharts-default-tooltip {
+    background-color: #0f172a !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    color: #f8fafc !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .dark .recharts-tooltip-item {
+    color: #f8fafc !important;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* Signature: a faint grid, used on auth + empty states. The rule colour
+     follows the brand green now rather than the indigo it was drawn in. */
+  .blueprint-grid {
+    background-color: hsl(var(--secondary));
+    background-image:
+      linear-gradient(hsla(142, 71%, 55%, 0.10) 1px, transparent 1px),
+      linear-gradient(90deg, hsla(142, 71%, 55%, 0.10) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /*
+    The data table, for the pages that build their own markup.
+
+    Fifteen pages use the Table components and get this styling from there.
+    Another dozen write plain <table> -- because they need a colspan, a
+    rowspan, a sticky first column or a two-level header the components do not
+    model -- and each had invented its own padding and its own borders. Same
+    product, a dozen slightly different tables.
+
+    Applying .data-table to the <table> gives those pages the same surface as
+    the components without asking them to give up the markup they need. One
+    place to change, and every table changes with it.
+
+    The rules deliberately do not set text colour or alignment: a page still
+    says text-right on a money column, or text-muted-foreground on a secondary
+    one, and those have to keep winning.
+  */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .data-table thead th {
+    height: 3rem;
+    padding: 0 1rem;
+    text-align: left;
+    vertical-align: middle;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: hsl(var(--muted-foreground));
+    background-color: hsl(var(--card));
+    /* The one rule the table keeps: it marks where the data starts. There are
+       no vertical rules, because alignment separates columns without drawing
+       six lines of furniture through every row. */
+    border-bottom: 1px solid hsl(var(--border));
+  }
+
+  .data-table tbody td {
+    padding: 0.875rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  .data-table tbody tr {
+    transition: background-color 150ms;
+  }
+
+  /* Tints rather than greys: --muted is the palette's lightest green. */
+  .data-table tbody tr:hover {
+    background-color: hsl(var(--muted) / 0.6);
+  }
+
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* The shell the Table component draws around itself, as a class the
+     hand-built tables can put on their own wrapper. */
+  .data-table-shell {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--card));
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  /*
+    The name and job title in the sidebar footer. The name is set in the
+    condensed display face and the designation in Fugaz One, which is wide
+    and heavy, so the two never read as one block of text despite sitting on
+    consecutive lines.
+  */
+  .identity-name {
+    font-family: var(--font-identity), "Barlow Condensed", sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    font-size: 1.2rem;
+    line-height: 1.05;
+    letter-spacing: 0.005em;
+  }
+
+  /*
+    The designation carries a slow highlight that travels across the letters.
+    It is a moving background behind clipped text rather than an opacity or
+    transform loop, so nothing about the element's box changes and the sweep
+    costs no layout work.
+  */
+  .identity-role {
+    font-family: "Fugaz One", "Space Grotesk", cursive;
+    font-size: 0.6875rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    /*
+      Four stops rather than a soft two-colour blend. The eye reads a
+      travelling edge, not a slow tint change, so the movement is obvious
+      at this size without the text ever becoming hard to read.
+    */
+    /*
+      Greens, and the highlight is the light one rather than white.
+
+      This ran indigo with a white flash through the middle, which was built
+      for a dark sidebar. The sidebar is white now, so the white stop was
+      invisible and the indigo was the last of the old identity still on
+      screen. Dark green at the ends, the brand green through the travelling
+      edge -- the same effect, readable on a light surface.
+    */
+    background-image: linear-gradient(
+      100deg,
+      #166534 0%,
+      #166534 28%,
+      #22C55E 42%,
+      #15803D 50%,
+      #166534 58%,
+      #166534 74%,
+      #166534 100%
+    );
+    background-size: 320% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: identity-sweep 3.2s linear infinite;
+  }
+
+  /*
+    The banner versions of the two. Same faces and the same travelling
+    highlight as the sidebar, scaled up for a heading and given a rule
+    between them, so the greeting and the job title read as one unit
+    rather than two stacked lines.
+  */
+  .cover-name {
+    font-family: var(--font-identity), "Barlow Condensed", sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    /* Over a photograph nobody vetted for contrast, the shadow is what
+       keeps the name legible rather than the overlay alone. */
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  }
+
+  .cover-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: "Fugaz One", "Space Grotesk", cursive;
+    /*
+      Sized against the greeting above it rather than in fixed pixels, so
+      the pair keeps its proportion from a phone up to a wide monitor. The
+      tracking eases off as the type grows: 0.22em is right at label size
+      and starts to pull the word apart at heading size.
+    */
+    font-size: clamp(1.15rem, 2.3vw, 1.75rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 0.55rem;
+  }
+
+  /* The rule grows out from the text once, on arrival, and then stays. It
+     marks the title as deliberate without adding a second thing in motion
+     competing with the sweep. */
+  .cover-role::before {
+    content: "";
+    height: 3px;
+    width: 3.25rem;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #6ee7b7);
+    transform-origin: left center;
+    animation: cover-rule 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .cover-role > span {
+    background-image: linear-gradient(
+      100deg,
+      #c7d2fe 0%,
+      #c7d2fe 28%,
+      #ffffff 42%,
+      #5eead4 50%,
+      #34d399 58%,
+      #c7d2fe 74%,
+      #c7d2fe 100%
+    );
+    background-size: 320% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: identity-sweep 3.2s linear infinite;
+  }
+
+  @keyframes cover-rule {
+    from { transform: scaleX(0); opacity: 0; }
+    to   { transform: scaleX(1); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover-role::before { animation: none; }
+    .cover-role > span {
+      animation: none;
+      background-image: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      color: #d1fae5;
+    }
+  }
+
+  /* A title nobody has filled in yet should not shimmer as if it had. */
+  .identity-role-plain {
+    font-family: "Fugaz One", "Space Grotesk", cursive;
+    font-size: 0.6875rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    /* Was a pale slate, for a dark sidebar. On white it was barely there. */
+    color: hsl(var(--muted-foreground));
+  }
+
+  @keyframes identity-sweep {
+    to {
+      background-position: -220% 0;
+    }
+  }
+
+  /*
+    Motion is decoration here, so it goes away entirely for anyone who has
+    asked their system for less of it. The gradient is dropped with it,
+    because a clipped gradient that never moves reads as uneven colour.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .identity-role {
+      animation: none;
+      background-image: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      /* The reduced-motion fallback, on the same light surface. */
+      color: hsl(var(--primary));
+    }
+  }
+
+  .code-chip {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    letter-spacing: -0.02em;
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+/* Interactive polish: theme switches and hover states ease instead of
+   snapping. Honoured by the reduced-motion block below. */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Thin, unobtrusive scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--background));
+}
+
+/*
+  Small text, on a small screen.
+
+  There are around 470 places in this app that pin a size in pixels --
+  text-[9px], text-[10px], text-[11px] -- for dense desktop tables, stat
+  captions and badges. None of them is responsive, so they arrive on a phone
+  at exactly the size they were drawn for a 27-inch monitor: legible at
+  arm's length on a desk, not in a hand.
+
+  Fixing this at the source would mean editing several hundred class names
+  across thirty files, each one a chance to break a layout that currently
+  works. Doing it here is one rule, reversible, and it cannot change the
+  desktop at all -- the media query does not apply above 640px.
+
+  The floors are chosen to stay inside the space those elements already have.
+  11px is the smallest size that is comfortable on a phone; below that the
+  gain in legibility is smaller than the risk of the text no longer fitting
+  the badge it sits in.
+
+  min() rather than a flat value so anything already larger is left alone.
+*/
+@media (max-width: 640px) {
+  .text-\[9px\]  { font-size: 11px !important; line-height: 1.35 !important; }
+  .text-\[10px\] { font-size: 11.5px !important; line-height: 1.35 !important; }
+  .text-\[11px\] { font-size: 12px !important; line-height: 1.4 !important; }
+
+  /* Tailwind's own small steps, same reasoning. text-xs is 12px and turns up
+     in table cells and helper lines all over the app. */
+  .text-\[10\.5px\] { font-size: 11.5px !important; }
+
+  /*
+    Tables stay dense but become readable.
+
+    Every table here already scrolls sideways, so widening a cell costs
+    nothing but a little more scrolling -- and a table nobody can read is
+    worse than one they have to scroll.
+  */
+  table { font-size: 12.5px; }
+  th, td { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+  /*
+    Icon buttons big enough to hit.
+
+    There are around 170 buttons sized h-6, h-7 or h-8 -- 24, 28 and 32
+    pixels. That is fine for a mouse and too small for a thumb, which needs
+    about 44. The visible box is left alone and the tappable area is grown
+    underneath it, so nothing moves on screen but the target stops being a
+    game of accuracy. Eye icons, downloads and row actions are all this size.
+  */
+  button.h-6, button.h-7, button.h-8,
+  a.h-6, a.h-7, a.h-8 {
+    position: relative;
+  }
+  button.h-6::after, button.h-7::after, button.h-8::after,
+  a.h-6::after, a.h-7::after, a.h-8::after {
+    content: "";
+    position: absolute;
+    /* Grows the hit area outward to roughly 44px without shifting layout. */
+    inset: -8px;
+  }
+
+  /*
+    Four columns of numbers is too many at 360px.
+
+    These are the small stat strips -- present / absent / late / leave. At a
+    phone's width each column is under 80 pixels, so a two-digit figure and
+    its caption end up stacked and clipped. Two columns of two reads properly
+    and takes the same space.
+  */
+  .grid.grid-cols-4:not([class*="sm:grid-cols"]):not([class*="md:grid-cols"]):not([class*="lg:grid-cols"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+  The Pixous loading mark.
+
+  One keyframe, driven per dot by an animation-delay, so the brightening
+  travels around the ring. Only opacity and scale change -- both composited,
+  so the browser does no layout or paint per frame and it holds 60fps on a
+  mid-range Android.
+*/
+@keyframes pixous-dot {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  55% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+}
+
+/*
+  Reduced motion: the ring stops turning, and the dots settle at a steady
+  brightness. The element still reads as "busy" to anyone watching, and it
+  still announces itself to a screen reader, without the movement.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .pixous-loader svg circle {
+    animation: pixous-dot-still 1.6s ease-in-out infinite !important;
+  }
+  @keyframes pixous-dot-still {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 0.85; }
+  }
+}

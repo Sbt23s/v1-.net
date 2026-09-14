@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pixous.HrPortal.Tests/Pixous.HrPortal.Tests.csproj" />
+  </Folder>
+  <Project Path="Pixous.HrPortal.Api/Pixous.HrPortal.Api.csproj" />
+  <Project Path="Pixous.HrPortal.Domain/Pixous.HrPortal.Domain.csproj" />
+  <Project Path="Pixous.HrPortal.Infrastructure/Pixous.HrPortal.Infrastructure.csproj" />
+</Solution>

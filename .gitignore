@@ -1,0 +1,101 @@
+# ==============================================================================
+# Pixous HR Portal (.NET 10 + React + MySQL) - .gitignore
+# ==============================================================================
+
+# Secrets & Credentials (STRICTLY FORBIDDEN IN SOURCE CONTROL)
+.env
+.env.local
+.env.backup
+.env.*
+!.env.example
+!.env.production.example
+!web/.env.production
+
+# Spring Boot & Legacy Java Codebase (Strictly Excluded)
+backend/
+
+# Unrelated Services & Tooling Folders
+analytics-service/
+mobile/
+deploy/
+work/
+scripts/
+docs/
+.claude/
+.github/
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node.js & React Build Outputs
+web/node_modules/
+web/dist/
+web/build/
+web/test-results/
+.expo/
+
+# .NET Build & Publish Outputs
+**/bin/
+**/obj/
+**/.vs/
+publish-backend-iis/
+
+# Runtime Logs, Crash Dumps & Scratch Outputs
+*.log
+*.log.err
+hs_err_pid*
+replay_pid*
+*.csv
+*.tmp
+
+# Local Binaries
+powershell.cmd
+powershell.exe
+
+# Legacy & Scratch Scripts in Root
+*.js
+*.py
+*.sh
+*.ps1
+!publish-live-iis.ps1
+
+# Legacy Batch Files in Root
+d.bat
+dp.bat
+start-analytics.bat
+run-local-safe-db.bat
+run-dotnet-local.bat
+run-dotnet-live-readonly.bat
+check-live-db.bat
+
+# Legacy Deployment & Container Configs
+docker-compose*.yml
+netlify.toml
+render.yaml
+
+# Legacy Markdown, PDF, Word & JSON Documentation Dumps
+BIOMETRIC-API.md
+CLAUDE.md
+DEPLOY.md
+EC2_DEPLOYMENT_GUIDE.md
+HANDOFF.md
+IMPLEMENTATION_NOTES_v5.md
+LOCALHOST-REBUILD-PROMPT.md
+PERFORMANCE_AUDIT.md
+QA_REPORT.md
+REQUIREMENTS*.md
+REVIEW_AND_FIXES.md
+STATUS_AND_ROADMAP.md
+tamil_translations.json
+*.pdf
+*.html
+*.docx
+*.postman_collection.json

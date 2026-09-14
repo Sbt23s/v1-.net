@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!--
+      IIS hosting. The ASP.NET Core Module rewrites web.config's handler section
+      on publish, so the file must be copied rather than generated fresh: the
+      limits and the WebSocket switch in ours would otherwise be lost.
+    -->
+    <IsTransformWebConfigDisabled>false</IsTransformWebConfigDisabled>
+
+    <!--
+      Framework-dependent: the hosting server has the ASP.NET Core runtime
+      installed via the Hosting Bundle, which it needs anyway for the module.
+      Self-contained would trade a 70MB publish for not needing that, and the
+      bundle is required regardless.
+    -->
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <!-- The stack trace is worth having when a production request fails. -->
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pixous.HrPortal.Infrastructure\Pixous.HrPortal.Infrastructure.csproj" />
+  </ItemGroup>
+
+
+  <!--
+    Keep the non-production settings OUT of a publish.
+
+    appsettings.Development.json holds a local database password and
+    appsettings.LiveReadOnly.json a hosted one. Neither is read when
+    ASPNETCORE_ENVIRONMENT is Production, so shipping them changes no behaviour
+    and only puts credentials on a server that has no use for them. Found by
+    grepping a real publish rather than by reasoning about it.
+  -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.LiveReadOnly.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.Hosted.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+</Project>
