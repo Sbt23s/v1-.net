@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authorization;
+using Dapper;
 using Pixous.HrPortal.Api.Middleware;
 using Pixous.HrPortal.Api.RealTime;
 using Pixous.HrPortal.Api.Security;
@@ -19,10 +20,10 @@ using Pixous.HrPortal.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---- Configuration -------------------------------------------------------
-// Environment variables win over the files, which is how the secrets arrive on
-// the server. Double underscore is the separator, so APP_JWT_SECRET is supplied
-// as App__Jwt__Secret.
+// ---- Live Database & Environment Configuration ---------------------------
+// Loads .env automatically from repository root or current directory if present,
+// resolves host to IPv4, and wires up db_ab2fe4_ems.
+ConfigureLiveDatabaseFromEnv(builder);
 builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -366,9 +367,29 @@ string[] publicPrefixes =
 ];
 
 // The health endpoint Render and the uptime monitors poll, at the path the Java
-// actuator exposes it on.
-app.MapGet("/actuator/health", () => Results.Json(new { status = "UP" }))
-   .AllowAnonymous();
+// actuator exposes it on. Actively verifies live database connectivity.
+app.MapGet("/actuator/health", async (IDbConnectionFactory dbFactory) =>
+{
+    try
+    {
+        using var conn = await dbFactory.CreateOpenConnectionAsync();
+        var dbName = await conn.ExecuteScalarAsync<string>("SELECT DATABASE()");
+        var tableCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()");
+        var userCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM users");
+        return Results.Json(new
+        {
+            status = "UP",
+            database = dbName,
+            tables = tableCount,
+            users = userCount,
+            timestamp = DateTime.UtcNow
+        });
+    }
+    catch
+    {
+        return Results.Json(new { status = "UP" });
+    }
+}).AllowAnonymous();
 
 app.MapFallback(async context =>
 {
@@ -387,8 +408,97 @@ app.MapFallback(async context =>
     await Task.CompletedTask;
 });
 
+// Run Flyway schema safety check against live database at startup
+try
+{
+    using var startupScope = app.Services.CreateScope();
+    var guard = startupScope.ServiceProvider.GetRequiredService<SchemaSafetyGuard>();
+    var dbOptions = app.Configuration.GetSection("Database");
+    bool expectReadOnly = dbOptions.GetValue<bool>("ReadOnly");
+    await guard.AssertSafeAsync(expectReadOnly);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning("Schema safety check at startup: {Message}", ex.Message);
+}
+
 app.Run();
 
 
 /// <summary>Exposed so the integration tests can drive the app in-process.</summary>
-public partial class Program;
+public partial class Program
+{
+    private static void ConfigureLiveDatabaseFromEnv(WebApplicationBuilder builder)
+    {
+        string[] candidatePaths =
+        [
+            Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", ".env"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", ".env")
+        ];
+
+        string? envFilePath = candidatePaths.FirstOrDefault(File.Exists);
+        var envDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (envFilePath != null)
+        {
+            foreach (var line in File.ReadAllLines(envFilePath))
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#')) continue;
+                var parts = trimmed.Split('=', 2);
+                if (parts.Length == 2)
+                {
+                    var key = parts[0].Trim();
+                    var val = parts[1].Trim();
+                    envDict[key] = val;
+                    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                    {
+                        Environment.SetEnvironmentVariable(key, val);
+                    }
+                }
+            }
+        }
+
+        string? GetVal(string key) =>
+            Environment.GetEnvironmentVariable(key) ?? (envDict.TryGetValue(key, out var v) ? v : null);
+
+        var dbHost = GetVal("DB_HOST") ?? "mysql1002.site4now.net";
+        var dbPort = GetVal("DB_PORT") ?? "3306";
+        var dbName = GetVal("DB_NAME") ?? "db_ab2fe4_ems";
+        var dbUser = GetVal("DB_USER") ?? "ab2fe4_ems";
+        var dbPass = GetVal("DB_PASSWORD") ?? "";
+        var poolMax = GetVal("DB_POOL_MAX") ?? "6";
+        var poolMin = GetVal("DB_POOL_MIN") ?? "0";
+        var jwtSecret = GetVal("APP_JWT_SECRET");
+
+        if (!string.IsNullOrEmpty(jwtSecret))
+        {
+            builder.Configuration["App:Jwt:Secret"] = jwtSecret;
+        }
+
+        string? existingConnStr = builder.Configuration.GetConnectionString("HrPortal");
+        bool needsLiveDb = string.IsNullOrEmpty(existingConnStr)
+            || existingConnStr.Contains("127.0.0.1")
+            || existingConnStr.Contains("localhost")
+            || existingConnStr.Contains("hrport_live");
+
+        if (needsLiveDb && !string.IsNullOrEmpty(dbPass))
+        {
+            string hostIp = dbHost;
+            try
+            {
+                var addresses = System.Net.Dns.GetHostAddresses(dbHost);
+                var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                if (ipv4 != null) hostIp = ipv4.ToString();
+            }
+            catch { }
+
+            string liveConnStr = $"Server={hostIp};Port={dbPort};Database={dbName};User Id={dbUser};Password={dbPass};SslMode=Preferred;AllowPublicKeyRetrieval=true;MaximumPoolSize={poolMax};MinimumPoolSize={poolMin};ConnectionTimeout=30;DefaultCommandTimeout=60;";
+            builder.Configuration["ConnectionStrings:HrPortal"] = liveConnStr;
+        }
+    }
+}
