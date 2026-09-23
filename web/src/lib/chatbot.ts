@@ -2,8 +2,10 @@
 // backend — this module only talks to /api/chatbot/*, never to third parties.
 import { api, tokenStore } from "@/lib/api";
 import type { ApiEnvelope } from "@/types";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 export type Lang = "en" | "ta";
 

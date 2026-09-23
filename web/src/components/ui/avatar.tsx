@@ -1,7 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 /** Turn a stored photo path into a usable image URL. */
 export function resolvePhotoUrl(src?: string): string | undefined {

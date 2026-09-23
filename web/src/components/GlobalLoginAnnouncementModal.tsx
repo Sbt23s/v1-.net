@@ -5,6 +5,9 @@ import SockJS from "sockjs-client";
 import { api, tokenStore } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { resolvePhotoUrl } from "@/components/ui/avatar";
+import config from "@/config";
+
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 /*
   lottie-react is 316 KB minified -- the fourth-largest chunk in the build, and
   larger than React itself. It renders one thing: the optional entrance
@@ -86,12 +89,8 @@ export function GlobalLoginAnnouncementModal() {
       fetchActive();
     }, 800);
 
-    const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws`;
-
     const client = new Client({
-      webSocketFactory: () => new SockJS(wsUrl),
+      webSocketFactory: () => new SockJS(`${BASE}/ws`),
       connectHeaders: {
         Authorization: tokenStore.access ? `Bearer ${tokenStore.access}` : ""
       },

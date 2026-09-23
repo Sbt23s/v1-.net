@@ -6,7 +6,8 @@ import {
   LifeBuoy, User, Bell, Menu, X, Moon, Sun, LogOut, PanelLeftClose, PanelLeftOpen,
   FileBarChart, ClipboardList, Map, MessageSquareWarning, FileText,
   FolderOpen, ListTodo, FileArchive, CalendarDays, ChevronDown, Bot, Users2, Eraser, ScrollText,
-  PartyPopper, MessageSquare, Building2, FolderGit2, History, ShieldAlert, Lock, Award, SlidersHorizontal
+  PartyPopper, MessageSquare, Building2, FolderGit2, History, ShieldAlert, Lock, Award, SlidersHorizontal,
+  Settings
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBranding } from "@/hooks/useBranding";
@@ -168,7 +169,8 @@ const NAV: NavEntry[] = [
   { to: "/approval-config", label: "Approval Config", icon: SlidersHorizontal,
     anyPermission: ["ORG_MANAGE"], moduleCode: "APPROVAL_CONFIG" },
   { to: "/audit", label: "Audit Log", icon: History, moduleCode: "AUDIT_LOG", onlyRole: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
-  { to: "/admin/reset", label: "Fresh Start", icon: Eraser, onlyRole: ["SUPER_ADMIN", "COMPANY_ADMIN"] }
+  { to: "/admin/reset", label: "Fresh Start", icon: Eraser, onlyRole: ["SUPER_ADMIN", "COMPANY_ADMIN"] },
+  { to: "/settings", label: "Settings", icon: Settings, onlyRole: ["SUPER_ADMIN", "COMPANY_ADMIN"] }
 ];
 
 /**

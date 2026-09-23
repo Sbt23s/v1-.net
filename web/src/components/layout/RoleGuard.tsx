@@ -42,8 +42,10 @@ export function RoleGuard({
     (code) => code.toUpperCase() === (user?.employeeCode ?? "").toUpperCase()
   );
 
-  const allowed = !denied && (role
-    ? hasRoleExact(role)
+  const roleList = (role ?? "").split(",").map((r) => r.trim()).filter(Boolean);
+
+  const allowed = !denied && (roleList.length > 0
+    ? hasRoleExact(...roleList)
     : hasRole("SUPER_ADMIN") || hasPermission(...perms));
 
   if (!allowed) {

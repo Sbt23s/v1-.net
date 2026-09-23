@@ -11,7 +11,7 @@ namespace Pixous.HrPortal.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/technical-admin/roles")]
-[Authorize(Roles = "ROLE_TECHNICAL_ADMIN")]
+[Authorize(Roles = "ROLE_TECHNICAL_ADMIN,ROLE_SUPER_ADMIN,ROLE_COMPANY_ADMIN")]
 public sealed class TechnicalAdminRoleController : ControllerBase
 {
     private readonly ITechnicalAdminRoleBal _roleBal;

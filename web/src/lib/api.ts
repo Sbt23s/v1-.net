@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 export const TOKEN_KEY = "hrp.accessToken";
 export const REFRESH_KEY = "hrp.refreshToken";

@@ -1,1 +1,0 @@
-ALTER TABLE salary_structures MODIFY COLUMN pf_percentage DECIMAL(12,2) NOT NULL DEFAULT 0.0;

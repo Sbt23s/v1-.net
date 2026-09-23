@@ -4,8 +4,9 @@ import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { api, tokenStore } from "@/lib/api";
 import type { ApiEnvelope } from "@/types";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 /** One line of the conversation kept against a task. */
 export interface TaskMessage {

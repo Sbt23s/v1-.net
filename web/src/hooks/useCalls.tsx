@@ -9,8 +9,10 @@ import { api, tokenStore } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { CallOverlay, type CallState } from "@/components/CallOverlay";
 import { setLiveCaller } from "@/lib/liveCall";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 /** A call rings for this long before it is given up on as unanswered. */
 const NO_ANSWER_MS = 45_000;

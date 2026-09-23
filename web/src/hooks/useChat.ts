@@ -5,8 +5,9 @@ import SockJS from "sockjs-client";
 import { api, tokenStore } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalls } from "@/hooks/useCalls";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 export interface ChatMessage {
   messageId: number;

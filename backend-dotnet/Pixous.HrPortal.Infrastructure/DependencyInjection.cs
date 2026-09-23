@@ -231,10 +231,21 @@ public static class DependencyInjection
         services.AddScoped<IApprovalConfigDal, ApprovalConfigDal>();
         services.AddScoped<IApprovalConfigBal, ApprovalConfigBal>();
 
+        // Admin Settings -> Privileges & Configuration. The invalidator is a
+        // singleton because it is the cache generation every request reads.
+        services.AddSingleton<Pixous.HrPortal.Domain.Security.IPermissionCacheInvalidator,
+                              Pixous.HrPortal.Infrastructure.Security.PermissionCacheInvalidator>();
+        services.AddScoped<Pixous.HrPortal.Domain.Modules.Privileges.IPrivilegeDal,
+                           Pixous.HrPortal.Infrastructure.Modules.Privileges.PrivilegeDal>();
+        services.AddScoped<Pixous.HrPortal.Domain.Modules.Privileges.IPrivilegeBal,
+                           Pixous.HrPortal.Infrastructure.Modules.Privileges.PrivilegeBal>();
+
         // The dashboards -- read-only aggregation over records the other
         // modules already keep.
         services.AddScoped<IDashboardDal, DashboardDal>();
         services.AddScoped<IDashboardBal, DashboardBal>();
+        services.AddScoped<IDashboardConfigDal, DashboardConfigDal>();
+        services.AddScoped<IDashboardConfigBal, DashboardConfigBal>();
 
         // Attachments and conversation on a leave or permission request.
         // Access is by relationship rather than permission, decided in the BAL.

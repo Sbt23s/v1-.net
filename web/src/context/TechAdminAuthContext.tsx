@@ -8,6 +8,7 @@ import {
   type ReactNode
 } from "react";
 import { api, tokenStore, tokenExpired } from "@/lib/api";
+import { AuthContext } from "@/context/AuthContext";
 import type { ApiEnvelope } from "@/types";
 
 const TECH_ADMIN_KEY = "hrp.tech_admin";
@@ -341,9 +342,39 @@ function readStoredTheme(): "dark" | "light" {
 }
 
 export function TechAdminProvider({ children }: { children: ReactNode }) {
-  const [admin, setAdmin] = useState<TechAdmin | null>(() => readStoredAdmin());
+  const auth = useContext(AuthContext);
+  const portalUser = auth?.user;
+  const isSystemAdmin = Boolean(
+    portalUser?.roles?.includes("SUPER_ADMIN") ||
+    portalUser?.roles?.includes("COMPANY_ADMIN")
+  );
+
+  const [admin, setAdmin] = useState<TechAdmin | null>(() => {
+    const stored = readStoredAdmin();
+    if (stored) return stored;
+    if (portalUser && (portalUser.roles?.includes("SUPER_ADMIN") || portalUser.roles?.includes("COMPANY_ADMIN"))) {
+      return {
+        id: Number(portalUser.id) || 1,
+        name: portalUser.name || "System Admin",
+        username: portalUser.username || "admin",
+        email: portalUser.email || "admin@pixoustech.com"
+      };
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">(readStoredTheme);
+
+  useEffect(() => {
+    if (isSystemAdmin && portalUser) {
+      setAdmin((prev) => prev ?? {
+        id: Number(portalUser.id) || 1,
+        name: portalUser.name || "System Admin",
+        username: portalUser.username || "admin",
+        email: portalUser.email || "admin@pixoustech.com"
+      });
+    }
+  }, [isSystemAdmin, portalUser]);
 
   // Companies come from the server. They used to be seeded into localStorage from
   // a hard-coded list, which meant the control centre showed three tenants
@@ -407,7 +438,9 @@ export function TechAdminProvider({ children }: { children: ReactNode }) {
         })();
         const target = rememberedId
           ? list.find((c) => c.companyId === rememberedId || String(c.id) === rememberedId)
-          : list.find((c) => c.companyId === prev.companyId);
+          : portalUser?.companyId
+            ? list.find((c) => c.id === portalUser.companyId || c.companyId === String(portalUser.companyId))
+            : list.find((c) => c.companyId === prev.companyId);
         return target ?? list[0];
       });
 
@@ -430,11 +463,11 @@ export function TechAdminProvider({ children }: { children: ReactNode }) {
     } catch {
       setCompaniesFailed(true);
     }
-  }, [mirrorModulesForPortal]);
+  }, [mirrorModulesForPortal, portalUser]);
 
   useEffect(() => {
-    if (admin) refreshCompanies();
-  }, [admin, refreshCompanies]);
+    if (admin || isSystemAdmin) refreshCompanies();
+  }, [admin, isSystemAdmin, refreshCompanies]);
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => {
@@ -654,23 +687,14 @@ export function TechAdminProvider({ children }: { children: ReactNode }) {
     [persistModules]);
 
   useEffect(() => {
-    /*
-     * Restored from what is stored, and ended only when the token is actually
-     * gone or actually expired.
-     *
-     * The sign-in keeps no refresh token — there is nothing to refresh with —
-     * so the stored admin plus a live access token is the whole session. This
-     * checked only that a token existed; combined with the request layer
-     * treating any failed call as a dead session, a reload could land on one
-     * unlucky response and drop someone back at the login screen while their
-     * four-hour token still had hours left.
-     */
     if (!tokenStore.access || tokenExpired(tokenStore.access)) {
-      setAdmin(null);
-      localStorage.removeItem(TECH_ADMIN_KEY);
+      if (!isSystemAdmin) {
+        setAdmin(null);
+        localStorage.removeItem(TECH_ADMIN_KEY);
+      }
     }
     setLoading(false);
-  }, []);
+  }, [isSystemAdmin]);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await api.post<ApiEnvelope<{ accessToken: string; admin: TechAdmin }>>("/technical-admin/auth/login", {

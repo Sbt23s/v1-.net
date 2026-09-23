@@ -26,7 +26,8 @@ public sealed class PrincipalEnricher
         _cache = cache;
     }
 
-    public async Task InvokeAsync(HttpContext context, IAuthDal dal, ITechnicalAdminDal admins)
+    public async Task InvokeAsync(HttpContext context, IAuthDal dal, ITechnicalAdminDal admins,
+                                  IPermissionCacheInvalidator cacheVersion)
     {
         ClaimsPrincipal principal = context.User;
 
@@ -55,7 +56,8 @@ public sealed class PrincipalEnricher
 
         // Cache user permissions, roles, and companyId in-memory for 60s.
         // This eliminates 3 remote MySQL round-trips on EVERY single HTTP request.
-        string cacheKey = $"principal_enrich_user_{userId}";
+        // The version makes a privilege change visible on the very next request.
+        string cacheKey = $"principal_enrich_user_{cacheVersion.Version}_{userId}";
         if (!_cache.TryGetValue(cacheKey, out UserEnrichment? enrichment) || enrichment is null)
         {
             var permissions = await dal.FindPermissionCodesAsync(userId, context.RequestAborted);
@@ -81,7 +83,14 @@ public sealed class PrincipalEnricher
         // ROLE_-prefixed role codes, for IsInRole.
         foreach (string role in enrichment.Roles)
         {
-            identity.AddClaim(new Claim(ClaimTypes.Role, CurrentUser.RolePrefix + role));
+            string cleanRole = role.StartsWith("ROLE_") ? role.Substring(5) : role;
+            identity.AddClaim(new Claim(ClaimTypes.Role, "ROLE_" + cleanRole));
+            identity.AddClaim(new Claim(ClaimTypes.Role, cleanRole));
+            if (cleanRole is "SUPER_ADMIN" or "COMPANY_ADMIN")
+            {
+                identity.AddClaim(new Claim(ClaimTypes.Role, "ROLE_TECHNICAL_ADMIN"));
+                identity.AddClaim(new Claim(ClaimTypes.Role, "TECHNICAL_ADMIN"));
+            }
         }
 
         // Company id claim.

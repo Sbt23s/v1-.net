@@ -104,62 +104,27 @@ export default defineConfig({
   ],
 
   build: {
-    /*
-      Everything used to land in one entry chunk, so a deploy that touched a
-      single line of our own code invalidated React and the router along with
-      it and every user re-downloaded the lot. These four rarely change, so
-      giving them their own files lets the browser keep them across releases.
-      The list is deliberately short: splitting further produces many small
-      requests, which on a cold load costs more than it saves.
-    */
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-query": ["@tanstack/react-query", "@tanstack/react-table"],
-          "vendor-realtime": ["@stomp/stompjs", "sockjs-client"],
-          "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod"],
-          /*
-            The animation engine, out of the entry chunk.
+  outDir: path.resolve(
+    __dirname,
+    "../backend-dotnet/Pixous.HrPortal.Api/wwwroot"
+  ),
 
-            Exactly one screen uses it -- the login page -- and the login page
-            is eagerly imported so that a first-time visitor sees it without
-            waiting for a second request. That is worth keeping, but it was
-            dragging framer-motion into the entry bundle with it, so every
-            already-signed-in person downloaded an animation library for a
-            page they were not going to see. As its own chunk the browser
-            fetches it alongside the entry rather than inside it, and after
-            the first visit it is served from cache.
-          */
-          "vendor-motion": ["framer-motion"],
+  emptyOutDir: true,
 
-          /*
-            The animation player and the chart library, each in a chunk named
-            after itself.
-
-            Neither was named, so Rollup called them after whichever module it
-            happened to pick -- the player landed in a 743 KB chunk called
-            "index-*", indistinguishable from the entry chunk. That made them
-            impossible to exclude from the service worker precache by name,
-            which is how 1.1 MB nobody had asked for was being fetched in the
-            background on every deploy. Naming them fixes the precache rule
-            above and keeps it fixed the next time the module graph shifts.
-          */
-          "lottie": ["lottie-react"],
-
-          /*
-            The spreadsheet writer, out of the page that uses it.
-
-            Without this it compiled into the attendance chunk and took it from
-            180 KB to 898 KB -- so every visit to the attendance page downloaded
-            a full Excel writer whether or not anyone exported anything. As its
-            own chunk it arrives only when an export actually runs.
-          */
-          "xlsxstyle": ["xlsx-js-style"]
-        }
+  rollupOptions: {
+    output: {
+      manualChunks: {
+        "vendor-react": ["react", "react-dom", "react-router-dom"],
+        "vendor-query": ["@tanstack/react-query", "@tanstack/react-table"],
+        "vendor-realtime": ["@stomp/stompjs", "sockjs-client"],
+        "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod"],
+        "vendor-motion": ["framer-motion"],
+        "lottie": ["lottie-react"],
+        "xlsxstyle": ["xlsx-js-style"]
       }
     }
-  },
+  }
+},
 
   resolve: {
     alias: {

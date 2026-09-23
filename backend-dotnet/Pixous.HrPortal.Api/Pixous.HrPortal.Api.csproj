@@ -34,17 +34,9 @@
     <ProjectReference Include="..\Pixous.HrPortal.Infrastructure\Pixous.HrPortal.Infrastructure.csproj" />
   </ItemGroup>
 
-
-  <!--
-    Keep the non-production settings OUT of a publish.
-
-    appsettings.Development.json holds a local database password and
-    appsettings.LiveReadOnly.json a hosted one. Neither is read when
-    ASPNETCORE_ENVIRONMENT is Production, so shipping them changes no behaviour
-    and only puts credentials on a server that has no use for them. Found by
-    grepping a real publish rather than by reasoning about it.
-  -->
   <ItemGroup>
+    <Content Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="appsettings.Production.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
     <Content Update="appsettings.LiveReadOnly.json" CopyToPublishDirectory="Never" />
     <Content Update="appsettings.Hosted.json" CopyToPublishDirectory="Never" />

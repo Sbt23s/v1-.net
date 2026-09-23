@@ -61,6 +61,10 @@ public sealed class CorsOptions
     /// </summary>
     public string[] AllowedOrigins { get; init; } =
         [
+            "https://pixous-employeeportal.pixoustech.app",
+            "http://pixous-employeeportal.pixoustech.app",
+            "https://www.pixous-employeeportal.pixoustech.app",
+            "http://www.pixous-employeeportal.pixoustech.app",
             "https://pixoushrportal.pixous.info",
             "http://pixoushrportal.pixous.info",
             "https://www.pixoushrportal.pixous.info",

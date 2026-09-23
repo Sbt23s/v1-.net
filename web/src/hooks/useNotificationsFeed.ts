@@ -12,8 +12,9 @@ import { resolveNotificationLink } from "@/lib/notificationLink";
 import { notificationAllowed } from "@/lib/notificationModules";
 import { useAuth } from "@/context/AuthContext";
 import type { ApiEnvelope, AppNotification, PageEnvelope } from "@/types";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 // Three invented notifications used to be returned whenever this request failed
 // or came back empty, so the bell showed unread items that did not exist and an

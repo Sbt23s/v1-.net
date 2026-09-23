@@ -176,6 +176,7 @@ const CalendarPage = safeLazy(() => import("@/pages/Calendar"));
 const TasksPage = safeLazy(() => import("@/pages/Tasks"));
 const TeamsPage = safeLazy(() => import("@/pages/Teams"));
 const MyTeamPage = safeLazy(() => import("@/pages/MyTeam"));
+const SettingsPage = safeLazy(() => import("@/pages/Settings"));
 
 // Technical Admin Pages
 import { TechAdminProvider } from "@/context/TechAdminAuthContext";
@@ -297,7 +298,16 @@ export const router = createBrowserRouter([
       { path: "complaints", element: page(<ComplaintsPage />) },
       { path: "discipline", element: page(<DisciplinePage />) },
       { path: "appreciation", element: page(<AppreciationPage />) },
-      { path: "approval-config", element: page(<ApprovalConfigPage />) },
+      {
+        // Every endpoint behind this page needs ORG_MANAGE; without a guard the
+        // page opened for anyone who typed the address and then failed call by call.
+        path: "approval-config",
+        element: page(
+          <RoleGuard permission="ORG_MANAGE">
+            <ApprovalConfigPage />
+          </RoleGuard>
+        )
+      },
       { path: "notifications", element: page(<NotificationsPage />) },
       /*
         One conversation, reachable by the request it belongs to.
@@ -421,6 +431,16 @@ export const router = createBrowserRouter([
             <DataResetPage />
           </RoleGuard>
         )
+      },
+      {
+        path: "settings",
+        element: (
+          <RoleGuard role="SUPER_ADMIN,COMPANY_ADMIN">
+            <TechAdminProvider>
+              {page(<SettingsPage />)}
+            </TechAdminProvider>
+          </RoleGuard>
+        )
       }
     ]
   },
@@ -432,34 +452,26 @@ export const router = createBrowserRouter([
       </TechAdminProvider>
     ),
     children: [
-      { index: true, element: <Navigate to="/tech-admin/dashboard" replace /> },
-      { path: "dashboard", element: page(<TechAdminDashboard />) },
-      { path: "companies", element: page(<TechAdminCompanies />) },
-      { path: "companies/:id/config", element: page(<TechAdminCompanyConfig />) },
-      { path: "module-management", element: page(<TechAdminModuleManagement />) },
-      // Was rendering ModuleManagement, which is why Roles & Permissions looked
-      // empty — it was showing a different screen.
-      { path: "roles", element: page(<TechAdminRoles />) },
-      { path: "users", element: page(<TechAdminUsers />) },
-      { path: "employees", element: page(<TechAdminUsers />) },
-      // "organization" removed with its sidebar entry — it rendered the
-      // Companies page, which /tech-admin/companies already does.
-      { path: "module/*", element: page(<TechAdminModuleManagement />) },
-      { path: "audit-logs", element: page(<TechAdminAuditLogs />) },
-      { path: "global-announcements", element: page(<TechAdminGlobalAnnouncements />) },
-      { path: "integrations", element: page(<TechAdminSettings />) },
-      { path: "branding", element: page(<TechAdminBranding />) },
-      { path: "security", element: page(<TechAdminSettings />) },
-      { path: "settings", element: page(<TechAdminSettings />) }
+      { index: true, element: <Navigate to="/settings?tab=company" replace /> },
+      { path: "dashboard", element: <Navigate to="/settings?tab=company" replace /> },
+      { path: "companies", element: <Navigate to="/settings?tab=company" replace /> },
+      { path: "companies/:id/config", element: <Navigate to="/settings?tab=company" replace /> },
+      { path: "module-management", element: <Navigate to="/settings?tab=modules" replace /> },
+      { path: "roles", element: <Navigate to="/settings?tab=users" replace /> },
+      { path: "users", element: <Navigate to="/settings?tab=users" replace /> },
+      { path: "employees", element: <Navigate to="/settings?tab=users" replace /> },
+      { path: "module/*", element: <Navigate to="/settings?tab=modules" replace /> },
+      { path: "audit-logs", element: <Navigate to="/settings?tab=audit" replace /> },
+      { path: "global-announcements", element: <Navigate to="/settings?tab=announcements" replace /> },
+      { path: "integrations", element: <Navigate to="/settings?tab=ai" replace /> },
+      { path: "branding", element: <Navigate to="/settings?tab=branding" replace /> },
+      { path: "security", element: <Navigate to="/settings?tab=audit" replace /> },
+      { path: "settings", element: <Navigate to="/settings" replace /> }
     ]
   },
   {
     path: "/tech-admin/login",
-    element: (
-      <TechAdminProvider>
-        <TechAdminLogin />
-      </TechAdminProvider>
-    )
+    element: <Navigate to="/settings" replace />
   },
   { path: "*", element: <NotFoundPage /> }
 ]);

@@ -3,8 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { tokenStore } from "@/lib/api";
+import config from "@/config";
 
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = (config.API_BASE_URL || "").trim().replace(/\/+$/, "");
 
 /**
  * Keeps attendance figures moving on their own.

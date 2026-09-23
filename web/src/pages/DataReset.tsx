@@ -35,7 +35,7 @@ const areaTitle = (area: string) =>
  * somebody is, what team they are in, their bank details, their salary
  * structure, the leave types, the holidays and the asset inventory all stay.
  */
-export default function DataResetPage() {
+export default function DataResetPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const qc = useQueryClient();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -77,28 +77,30 @@ export default function DataResetPage() {
   const totalToClear = chosenRows.reduce((s, r) => s + r.count, 0);
 
   return (
-    <div>
-      <PageHeader
-        title="Fresh Start"
-        subtitle="Clear the day-to-day records and begin again. Employee records are never touched."
-        actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (chosen.size === rows.length) setChosen(new Set());
-                else setChosen(new Set(rows.map((r) => r.area)));
-              }}
-            >
-              {chosen.size === rows.length ? "Deselect All" : "Select All Test Data"}
-            </Button>
-            <Button variant="outline" onClick={() => areas.refetch()}>
-              <RefreshCw className={cn("h-4 w-4", areas.isFetching && "animate-spin")} />
-              Refresh counts
-            </Button>
-          </div>
-        }
-      />
+    <div className="space-y-4">
+      {!hideHeader && (
+        <PageHeader
+          title="Fresh Start"
+          subtitle="Clear the day-to-day records and begin again. Employee records are never touched."
+          actions={
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (chosen.size === rows.length) setChosen(new Set());
+                  else setChosen(new Set(rows.map((r) => r.area)));
+                }}
+              >
+                {chosen.size === rows.length ? "Deselect All" : "Select All Test Data"}
+              </Button>
+              <Button variant="outline" onClick={() => areas.refetch()}>
+                <RefreshCw className={cn("h-4 w-4", areas.isFetching && "animate-spin")} />
+                Refresh counts
+              </Button>
+            </div>
+          }
+        />
+      )}
 
       {/* What can never be cleared. Said first, because that is the question
           anybody opening this page is actually asking. */}

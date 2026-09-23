@@ -382,6 +382,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
+  /*
+   * Privileges edited in Admin Settings are enforced by the server on the next
+   * request, but the menu and buttons here are drawn from the roles and
+   * permissions loaded at sign-in. This re-reads them when the tab is returned
+   * to and every two minutes, and only replaces the user when they actually
+   * differ -- so nothing re-renders, and no module list is re-fetched, on the
+   * ordinary case where nothing changed.
+   */
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const sync = async () => {
+      try {
+        const res = await api.get<ApiEnvelope<AuthUser>>("/auth/me");
+        const next = res.data?.data;
+        if (!active || !next) return;
+        setUser((prev) => {
+          if (!prev) return prev;
+          const key = (u: AuthUser) =>
+            JSON.stringify([[...(u.roles ?? [])].sort(), [...(u.permissions ?? [])].sort()]);
+          return key(prev) === key(next) ? prev : next;
+        });
+      } catch {
+        // Keep what is on screen; the server still enforces the current rules.
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    const timer = window.setInterval(sync, 120_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [userId]);
+
   /**
    * Whether the signed-in person is covered by a module's visibleRoles list.
    *
