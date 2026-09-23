@@ -448,7 +448,7 @@ public sealed class CommunityDal : DalBase, ICommunityDal
                    u.profile_status AS ProfileStatus, u.photo_path AS PhotoPath,
                    u.dob AS Dob, u.designation_id AS DesignationId,
                    u.designation_title AS DesignationTitle, u.tech_stack AS TechStack,
-                   u.company_id AS CompanyId, c.name AS CompanyName
+                   u.company_id AS CompanyId, c.company_name AS CompanyName
             FROM users u
             LEFT JOIN companies c ON c.id = u.company_id
             WHERE u.enabled = 1

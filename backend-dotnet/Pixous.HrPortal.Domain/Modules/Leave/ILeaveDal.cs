@@ -179,6 +179,8 @@ public sealed class LeaveBalanceRecord
     public long Id { get; set; }
     public long UserId { get; set; }
     public long LeaveTypeId { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public string LeaveTypeCode { get; set; } = string.Empty;
     public int Year { get; set; }
     public decimal Allocated { get; set; }
     public decimal Used { get; set; }

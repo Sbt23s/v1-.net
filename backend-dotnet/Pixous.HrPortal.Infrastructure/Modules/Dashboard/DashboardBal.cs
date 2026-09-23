@@ -166,14 +166,17 @@ public sealed class DashboardBal : IDashboardBal
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
         DateOnly monthStart = new(today.Year, today.Month, 1);
 
-        DashboardUser[] everyone = (await _dal.FindEnabledUsersAsync(ct))
+        DashboardUser[] everyone = (await _dal.FindAllUsersAsync(ct))
             .Where(u => want is null
                      || string.Equals(want, u.Industry, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        DashboardUser[] active = everyone.Where(u => !OrgInsightRules.IsGone(u.ProfileStatus))
+        DashboardUser[] active = everyone.Where(u => !OrgInsightRules.IsGone(u.ProfileStatus)
+                                                 && !string.Equals(u.ProfileStatus, "RESIGNED", StringComparison.OrdinalIgnoreCase))
                                          .ToArray();
-        DashboardUser[] gone = everyone.Where(u => OrgInsightRules.IsGone(u.ProfileStatus))
+        DashboardUser[] gone = everyone.Where(u => OrgInsightRules.IsGone(u.ProfileStatus)
+                                                || string.Equals(u.ProfileStatus, "RESIGNED", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(u.ProfileStatus, "NOTICE_PERIOD", StringComparison.OrdinalIgnoreCase))
                                        .ToArray();
 
         // ---- who has just joined ----
@@ -207,8 +210,26 @@ public sealed class DashboardBal : IDashboardBal
             .Where(a => activeIds.Contains(a.UserId))
             .ToArray();
 
-        long wfh = todays.Count(a => string.Equals(a.Status, "WFH",
-                                                   StringComparison.OrdinalIgnoreCase));
+        var wfhUserIds = todays
+            .Where(a => string.Equals(a.Status, "WFH", StringComparison.OrdinalIgnoreCase))
+            .Select(a => a.UserId)
+            .ToHashSet();
+
+        try
+        {
+            var approvedWfhIds = await _dal.FindApprovedWfhUserIdsOnAsync(today, ct);
+            foreach (var uid in approvedWfhIds)
+            {
+                wfhUserIds.Add(uid);
+            }
+        }
+        catch
+        {
+            // Fallback gracefully if table query encounters error
+        }
+
+        DashboardUser[] wfhUsers = active.Where(u => wfhUserIds.Contains(u.Id)).ToArray();
+        long wfh = wfhUsers.Length;
 
         long present = todays.Count(a => a.PunchInAt is not null
                                       && !string.Equals(a.Status, "ABSENT",
@@ -276,7 +297,8 @@ public sealed class DashboardBal : IDashboardBal
             People(gone, today, u => Relieved(relievedOn, u.Id)),
             People(confirmations, today, u => OrgInsightRules.ProbationEnd(u.ProbationEndDate,
                                                                           u.DateOfJoining)),
-            byDepartment, byTeam, byDesignation, growth);
+            byDepartment, byTeam, byDesignation, growth,
+            People(wfhUsers, today, u => today));
     }
 
     private static DateOnly? Relieved(IReadOnlyDictionary<long, DateOnly> map, long userId) =>

@@ -40,6 +40,14 @@ public sealed class ChatbotController : ControllerBase
     public async Task<ApiResponse<TranslateResponse>> Translate([FromBody] TranslateRequest req, CancellationToken ct) =>
         ApiResponse<TranslateResponse>.Ok(await _chatbotBal.TranslateAsync(req, ct));
 
+    [HttpGet("tts")]
+    public async Task<IActionResult> TtsGet([FromQuery] string text, [FromQuery] string? lang, [FromQuery] string? voiceId, CancellationToken ct)
+    {
+        byte[]? audio = await _chatbotBal.TextToSpeechAsync(new TtsRequest(text, lang ?? "en", voiceId), ct);
+        if (audio is null || audio.Length == 0) return NoContent();
+        return File(audio, "audio/mpeg");
+    }
+
     [HttpPost("tts")]
     public async Task<IActionResult> Tts([FromBody] TtsRequest req, CancellationToken ct)
     {

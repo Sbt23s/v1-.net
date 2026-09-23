@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using Pixous.HrPortal.Domain.Common;
 using Pixous.HrPortal.Domain.Modules.Community;
@@ -19,14 +20,17 @@ public sealed class CommunityBal : ICommunityBal
     private readonly INotificationBal _notifications;
     private readonly IRealtimePublisher _realtime;
     private readonly IStorageService _storage;
+    private readonly IServiceScopeFactory? _scopeFactory;
 
     public CommunityBal(ICommunityDal dal, INotificationBal notifications,
-                        IRealtimePublisher realtime, IStorageService storage)
+                        IRealtimePublisher realtime, IStorageService storage,
+                        IServiceScopeFactory? scopeFactory = null)
     {
         _dal = dal;
         _notifications = notifications;
         _realtime = realtime;
         _storage = storage;
+        _scopeFactory = scopeFactory;
     }
 
     // ---- rooms --------------------------------------------------------------
@@ -339,7 +343,7 @@ public sealed class CommunityBal : ICommunityBal
         if (scheduled is null)
         {
             await _realtime.SendAsync($"/topic/community/{communityId}", message, ct);
-            await NotifyMembersAsync(room, sender, request.Content ?? "New message", ct);
+            NotifyMembersAsync(room, sender, request.Content ?? "New message");
         }
 
         return message;
@@ -603,7 +607,7 @@ public sealed class CommunityBal : ICommunityBal
 
         ChatMessage payload = ToMessage(row, sender);
         await _realtime.SendAsync($"/topic/community/{communityId}", payload, ct);
-        await NotifyMembersAsync(room, sender, "🎤 Voice message", ct);
+        NotifyMembersAsync(room, sender, "🎤 Voice message");
     }
 
     public async Task SendAttachmentsAsync(
@@ -652,7 +656,7 @@ public sealed class CommunityBal : ICommunityBal
 
         ChatMessage payload = ToMessage(row, sender);
         await _realtime.SendAsync($"/topic/community/{communityId}", payload, ct);
-        await NotifyMembersAsync(room, sender, hasCaption ? $"{caption!.Trim()} ({count})" : text, ct);
+        NotifyMembersAsync(room, sender, hasCaption ? $"{caption!.Trim()} ({count})" : text);
     }
 
     public async Task DeleteMessageAsync(long messageId, long requesterId,
@@ -813,27 +817,55 @@ public sealed class CommunityBal : ICommunityBal
         return decorated;
     }
 
-    private async Task NotifyMembersAsync(
-        CommunityRow room, CommunityPerson sender, string content, CancellationToken ct)
+    private void NotifyMembersAsync(
+        CommunityRow room, CommunityPerson sender, string content)
     {
-        try
+        _ = Task.Run(async () =>
         {
-            string title = room.IsAnnouncement
-                ? $"Announcement: {room.Name}"
-                : (CommunityRules.IsDirect(room.Name) ? sender.Name ?? "Chat" : room.Name ?? "Group");
-
-            var members = await _dal.FindMembersAsync(room.Id, ct);
-            foreach (var m in members)
+            try
             {
-                if (m.UserId == sender.Id) continue;
-                await _notifications.CreateAndPushAsync(
-                    m.UserId, title, $"{sender.Name}: {content}", "COMMUNITY", $"/chat?room={room.Id}", ct);
+                string title = room.IsAnnouncement
+                    ? $"Announcement: {room.Name}"
+                    : (CommunityRules.IsDirect(room.Name) ? sender.Name ?? "Chat" : room.Name ?? "Group");
+
+                IEnumerable<long> recipientIds;
+                if (_scopeFactory is not null)
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dal = scope.ServiceProvider.GetRequiredService<ICommunityDal>();
+                    var notifications = scope.ServiceProvider.GetRequiredService<INotificationBal>();
+
+                    if (room.IsAnnouncement)
+                    {
+                        var contacts = await dal.FindContactsAsync(sender.Id, room.CompanyId);
+                        recipientIds = contacts.Select(c => c.Id);
+                    }
+                    else
+                    {
+                        var members = await dal.FindMembersAsync(room.Id);
+                        recipientIds = members.Where(m => m.UserId != sender.Id).Select(m => m.UserId);
+                    }
+
+                    var tasks = recipientIds.Select(id =>
+                        notifications.CreateAndPushAsync(
+                            id, title, $"{sender.Name}: {content}", "COMMUNITY", $"/chat?room={room.Id}"));
+                    await Task.WhenAll(tasks);
+                }
+                else
+                {
+                    var members = await _dal.FindMembersAsync(room.Id);
+                    recipientIds = members.Where(m => m.UserId != sender.Id).Select(m => m.UserId);
+                    var tasks = recipientIds.Select(id =>
+                        _notifications.CreateAndPushAsync(
+                            id, title, $"{sender.Name}: {content}", "COMMUNITY", $"/chat?room={room.Id}"));
+                    await Task.WhenAll(tasks);
+                }
             }
-        }
-        catch
-        {
-            // Notification failure should not fail message delivery
-        }
+            catch
+            {
+                // Notification failure should not fail message delivery
+            }
+        });
     }
 
     private async Task<CommunityRow> RequireRoomAsync(long communityId, CancellationToken ct) =>

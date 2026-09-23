@@ -124,7 +124,8 @@ public sealed record OrgInsights(
     IReadOnlyDictionary<string, long> DesignationCounts,
 
     /// <summary>One entry per month: {month, joined, exited}. Oldest first.</summary>
-    IReadOnlyList<IReadOnlyDictionary<string, object>> GrowthTrend);
+    IReadOnlyList<IReadOnlyDictionary<string, object>> GrowthTrend,
+    IReadOnlyList<InsightPerson>? WorkFromHomeList = null);
 
 /// <summary>
 /// Just enough of a person to list them and open their record.
@@ -241,4 +242,5 @@ public interface IDashboardDal
         FindPayslipTotalsAsync(CancellationToken ct = default);
 
     Task<IReadOnlyDictionary<long, string>> FindLeaveTypeNamesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<long>> FindApprovedWfhUserIdsOnAsync(DateOnly date, CancellationToken ct = default);
 }

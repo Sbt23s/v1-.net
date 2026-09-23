@@ -153,13 +153,27 @@ public sealed class ExpenseBal : IExpenseBal
         claim.Location = req.Location;
         claim.StartingKm = req.StartingKm;
         claim.EndingKm = req.EndingKm;
-        claim.TotalKm = req.TotalKm;
-        claim.HillsKm = req.HillsKm;
-        claim.PlainsKm = req.PlainsKm;
-        claim.TotalAmount = req.TotalAmount;
+
+        decimal totalKm = req.TotalKm ?? Math.Max(0, (req.EndingKm ?? 0) - (req.StartingKm ?? 0));
+        claim.TotalKm = totalKm > 0 ? totalKm : req.TotalKm;
+
+        decimal hills = req.HillsKm ?? 0;
+        decimal plains = req.PlainsKm ?? Math.Max(0, totalKm - hills);
+        claim.HillsKm = hills > 0 ? hills : req.HillsKm;
+        claim.PlainsKm = plains > 0 ? plains : req.PlainsKm;
+
+        decimal totalAmount = (req.TotalAmount != null && req.TotalAmount > 0)
+            ? req.TotalAmount.Value
+            : (hills * 7m + plains * 5m);
+        claim.TotalAmount = totalAmount > 0 ? totalAmount : req.TotalAmount;
         claim.BusFare = req.BusFare;
         claim.Others = req.Others;
-        claim.GrossTotal = req.GrossTotal;
+
+        decimal gross = (req.GrossTotal != null && req.GrossTotal > 0)
+            ? req.GrossTotal.Value
+            : (totalAmount + (req.BusFare ?? 0) + (req.Others ?? 0));
+        claim.GrossTotal = gross > 0 ? gross : req.GrossTotal;
+
         claim.Remarks = req.Remarks;
         claim.Category = req.Category;
         claim.PetrolSlipPath = req.PetrolSlipPath;

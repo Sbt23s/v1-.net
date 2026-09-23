@@ -145,21 +145,24 @@ public sealed class ChatbotBal : IChatbotBal
         {
             try
             {
-                if ("groq".Equals(p) && !string.IsNullOrWhiteSpace(await _dal.GetSettingAsync("GROQ_API_KEY", ct)))
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                if ("groq".Equals(p) && !string.IsNullOrWhiteSpace(await _dal.GetSettingAsync("GROQ_API_KEY", cts.Token)))
                 {
-                    string reply = await CallGroqChatAsync(system, history, message, ct);
+                    string reply = await CallGroqChatAsync(system, history, message, cts.Token);
                     return new ChatResponse(reply, "groq", lang);
                 }
 
-                if ("gemini".Equals(p) && !string.IsNullOrWhiteSpace(await _dal.GetSettingAsync("GEMINI_API_KEY", ct)))
+                if ("gemini".Equals(p) && !string.IsNullOrWhiteSpace(await _dal.GetSettingAsync("GEMINI_API_KEY", cts.Token)))
                 {
-                    string reply = await CallGeminiAsync(system, history, message, ct);
+                    string reply = await CallGeminiAsync(system, history, message, cts.Token);
                     return new ChatResponse(reply, "gemini", lang);
                 }
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "Chatbot provider {Provider} failed: {Message}", p, ex.Message);
+                _log.LogWarning(ex, "Chatbot provider {Provider} failed or timed out: {Message}", p, ex.Message);
             }
         }
 
@@ -222,58 +225,63 @@ public sealed class ChatbotBal : IChatbotBal
         }
 
         string? key = await _dal.GetSettingAsync("ELEVENLABS_API_KEY", ct);
-        if (string.IsNullOrWhiteSpace(key)) return null;
-
-        string voiceId = !string.IsNullOrWhiteSpace(req.VoiceId)
-            ? req.VoiceId.Trim()
-            : (await _dal.GetSettingAsync("ELEVENLABS_VOICE_ID", ct) ?? "EXAVITQu4vr4xnSDxMaL");
-
-        string model = await _dal.GetSettingAsync("ELEVENLABS_MODEL", ct) ?? "eleven_multilingual_v2";
-
-        bool nonEnglish = !string.IsNullOrEmpty(reqLang) && !"en".Equals(reqLang);
-        if (nonEnglish && !model.Contains("turbo") && !model.Contains("flash"))
+        if (!string.IsNullOrWhiteSpace(key))
         {
-            model = "eleven_turbo_v2_5";
-        }
-        bool supportsLangCode = model.Contains("turbo") || model.Contains("flash");
+            string voiceId = !string.IsNullOrWhiteSpace(req.VoiceId)
+                ? req.VoiceId.Trim()
+                : (await _dal.GetSettingAsync("ELEVENLABS_VOICE_ID", ct) ?? "EXAVITQu4vr4xnSDxMaL");
 
-        string speak = text.Length > 2500 ? text[..2500] : text;
+            string model = await _dal.GetSettingAsync("ELEVENLABS_MODEL", ct) ?? "eleven_multilingual_v2";
 
-        var bodyObj = new JsonObject
-        {
-            ["text"] = speak,
-            ["model_id"] = model,
-            ["voice_settings"] = new JsonObject
+            bool nonEnglish = !string.IsNullOrEmpty(reqLang) && !"en".Equals(reqLang);
+            if (nonEnglish && !model.Contains("turbo") && !model.Contains("flash"))
             {
-                ["stability"] = 0.5,
-                ["similarity_boost"] = 0.75,
-                ["style"] = 0.0
+                model = "eleven_turbo_v2_5";
             }
-        };
+            bool supportsLangCode = model.Contains("turbo") || model.Contains("flash");
 
-        if (supportsLangCode && !string.IsNullOrEmpty(reqLang))
-        {
-            bodyObj["language_code"] = reqLang;
-        }
+            string speak = text.Length > 2500 ? text[..2500] : text;
 
-        try
-        {
-            using var msg = new HttpRequestMessage(HttpMethod.Post, string.Format(ElevenLabsUrl, voiceId));
-            msg.Headers.Add("xi-api-key", key);
-            msg.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("audio/mpeg"));
-            msg.Content = new StringContent(bodyObj.ToJsonString(), Encoding.UTF8, "application/json");
-
-            var res = await _http.SendAsync(msg, ct);
-            if (res.IsSuccessStatusCode)
+            var bodyObj = new JsonObject
             {
-                byte[] bytes = await res.Content.ReadAsByteArrayAsync(ct);
-                if (bytes.Length > 0) return bytes;
+                ["text"] = speak,
+                ["model_id"] = model,
+                ["voice_settings"] = new JsonObject
+                {
+                    ["stability"] = 0.5,
+                    ["similarity_boost"] = 0.75,
+                    ["style"] = 0.0
+                }
+            };
+
+            if (supportsLangCode && !string.IsNullOrEmpty(reqLang))
+            {
+                bodyObj["language_code"] = reqLang;
+            }
+
+            try
+            {
+                using var msg = new HttpRequestMessage(HttpMethod.Post, string.Format(ElevenLabsUrl, voiceId));
+                msg.Headers.Add("xi-api-key", key);
+                msg.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("audio/mpeg"));
+                msg.Content = new StringContent(bodyObj.ToJsonString(), Encoding.UTF8, "application/json");
+
+                var res = await _http.SendAsync(msg, ct);
+                if (res.IsSuccessStatusCode)
+                {
+                    byte[] bytes = await res.Content.ReadAsByteArrayAsync(ct);
+                    if (bytes.Length > 0) return bytes;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "ElevenLabs TTS failed: {Message}", ex.Message);
             }
         }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "ElevenLabs TTS failed: {Message}", ex.Message);
-        }
+
+        // Google TTS fallback for all languages including English
+        byte[]? googleAudio = await GoogleTtsAsync(text, reqLang, ct);
+        if (googleAudio is not null && googleAudio.Length > 0) return googleAudio;
 
         return null;
     }
@@ -676,43 +684,59 @@ public sealed class ChatbotBal : IChatbotBal
         bool payAsked = q.Contains("pay") || q.Contains("salary") || q.Contains("payslip") || q.Contains("சம்பள") || q.Contains("वेतन") || q.Contains("सैलरी");
         bool assetAsked = q.Contains("asset") || q.Contains("laptop") || q.Contains("சொத்து") || q.Contains("संपत्ति");
 
+        bool taskAsked = q.Contains("task") || q.Contains("வேலை") || q.Contains("பணி") || q.Contains("कार्य");
+        bool claimAsked = q.Contains("claim") || q.Contains("expense") || q.Contains("travel") || q.Contains("செலவு");
+        bool greetingAsked = q.Contains("hello") || q.Contains("hi") || q.Contains("hey") || q.Contains("வணக்கம்") || q.Contains("नमस्ते");
+
         bool leave = leaveAsked && canDiscuss("LEAVE");
         bool attendance = attendanceAsked && canDiscuss("ATTENDANCE");
         bool pay = payAsked && canDiscuss("PAYROLL");
         bool asset = assetAsked && canDiscuss("ASSETS");
+        bool task = taskAsked && canDiscuss("TASKS");
+        bool claim = claimAsked && canDiscuss("EXPENSES");
 
         bool askedSomethingOff = (leaveAsked && !leave) || (attendanceAsked && !attendance)
-                                || (payAsked && !pay) || (assetAsked && !asset);
+                                || (payAsked && !pay) || (assetAsked && !asset)
+                                || (taskAsked && !task) || (claimAsked && !claim);
 
         if (askedSomethingOff)
         {
             return lang switch
             {
-                "ta" => "அந்த வசதி உங்கள் நிறுவனத்தில் இயக்கப்படவில்லை. நிர்வாகியை அணுகுங்கள்.",
+                "ta" => "அந்த வசதி உங்கள் நிறுவனத்தில் இயக்கப்படவில்லை. நிர்வாகியை அணுகவும்.",
                 "hi" => "यह सुविधा आपकी कंपनी में सक्रिय नहीं है। कृपया अपने प्रशासक से संपर्क करें।",
-                _ => "That is not switched on for your company. Ask your administrator if you need it."
+                _ => "That module is not enabled for your company. Please contact your administrator."
             };
         }
 
         return lang switch
         {
-            "ta" => leave ? "'Leave' மெனுவில் உங்கள் விடுப்பு விவரங்களைப் பார்த்து விண்ணப்பிக்கலாம்."
-                 : attendance ? "Dashboard-இல் 'Punch In/Out' மூலம் வருகையைப் பதிவு செய்யலாம்; விவரங்கள் 'Attendance' பக்கத்தில்."
-                 : pay ? "உங்கள் சம்பள விவரங்களையும் பேஸ்லிப்களையும் 'Payslips' பக்கத்தில் காணலாம்."
-                 : asset ? "உங்களுக்கு வழங்கப்பட்ட சாதனங்கள் 'Assets' மெனுவில் பட்டியலிடப்பட்டுள்ளன."
-                 : "நான் Pixous HR உதவியாளர். விடுப்பு, வருகை, சம்பளம், சொத்துக்கள் குறித்து கேளுங்கள். (AI சேவை தற்காலிகமாக கிடைக்கவில்லை.)",
+            "ta" => greetingAsked ? "வணக்கம்! நான் உங்கள் Pixous HR உதவியாளர் 🤖. விடுப்பு, வருகை, சம்பளம், பணிகள் பற்றி என்னிடம் கேளுங்கள்!"
+                 : leave ? "Requests > 'Balance' அல்லது 'Leave' பக்கத்தில் உங்கள் விடுப்பு இருப்பைப் பார்த்து புதிய விடுப்புக்கு விண்ணப்பிக்கலாம்."
+                 : attendance ? "வருகை பயோமெட்ரிக் டெர்மினல் மூலம் தானாகப் பதிவு செய்யப்படுகிறது. உங்கள் தினசரி நேரங்கள் மற்றும் அறிக்கைகளை 'Attendance' பக்கத்தில் காணலாம்."
+                 : task ? "More > 'Tasks' பக்கத்தில் உங்கள் பணிகளைப் பார்வையிடலாம், புதுப்பிக்கலாம் மற்றும் புதிய பணிகளை ஒதுக்கலாம்."
+                 : pay ? "More > 'Payroll' பக்கத்தில் உங்கள் மாத சம்பள விவரங்களையும் பேஸ்லிப்களையும் PDF ஆகப் பதிவிறக்கலாம்."
+                 : claim ? "More > 'Claims' பக்கத்தில் பயண மற்றும் இதர செலவுக் கோரிக்கைகளைச் சமர்ப்பிக்கலாம்."
+                 : asset ? "உங்களுக்கு வழங்கப்பட்ட மடிக்கணினி மற்றும் சாதனங்கள் 'Assets' மெனுவில் பட்டியலிடப்பட்டுள்ளன."
+                 : "நான் Pixous HR உதவியாளர். விடுப்பு, வருகை, சம்பளம், பணிகள் அல்லது நிறுவன விதிமுறைகள் குறித்து கேளுங்கள்.",
 
-            "hi" => leave ? "'Leave' मेन्यू में आप अपनी छुट्टी का बैलेंस देख सकते हैं और आवेदन कर सकते हैं।"
-                 : attendance ? "Dashboard पर 'Punch In/Out' से हाज़िरी दर्ज करें; विवरण 'Attendance' पेज पर देखें।"
-                 : pay ? "अपने वेतन और मासिक पे-स्लिप 'Payslips' पेज पर देखें और डाउनलोड करें।"
-                 : asset ? "आपको सौंपे गए कंपनी उपकरण 'Assets' मेन्यू में सूचीबद्ध हैं।"
-                 : "मैं Pixous HR सहायक हूँ। छुट्टी, हाज़िरी, वेतन और संपत्ति के बारे में पूछें। (AI सेवा अभी उपलब्ध नहीं है।)",
+            "hi" => greetingAsked ? "नमस्ते! मैं आपका Pixous HR सहायक हूँ 🤖। छुट्टी, हाज़िरी, वेतन और कार्यों के बारे में पूछें।"
+                 : leave ? "Requests > 'Balance' या 'Leave' मेन्यू में अपनी छुट्टी का बैलेंस देखें और आवेदन करें।"
+                 : attendance ? "हाज़िरी बायोमेट्रिक टर्मिनल द्वारा स्वचालित रूप से दर्ज होती है। विवरण 'Attendance' पेज पर देखें।"
+                 : task ? "More > 'Tasks' में आप अपने कार्य देख और प्रबंधित कर सकते हैं।"
+                 : pay ? "More > 'Payroll' पेज पर अपने वेतन और मासिक पे-स्लिप देखें और डाउनलोड करें।"
+                 : claim ? "More > 'Claims' पेज पर भत्ते और खर्चों के दावे जमा करें।"
+                 : asset ? "आपको सौंपे गए उपकरण 'Assets' मेन्यू में सूचीबद्ध हैं।"
+                 : "मैं Pixous HR सहायक हूँ। छुट्टी, हाज़िरी, वेतन, कार्य और नीतियों के बारे में पूछें।",
 
-            _ => leave ? "You can check your leave balance and apply under the 'Leave' menu."
-               : attendance ? "Punch in/out on the Dashboard, and view your logs under 'Attendance'."
-               : pay ? "View and download your monthly payslips under the 'Payslips' menu."
-               : asset ? "Company devices assigned to you are listed under the 'Assets' menu."
-               : "I'm the Pixous HR Assistant. Ask me about leave, attendance, payslips or assets. (The AI service is temporarily unavailable.)"
+            _ => greetingAsked ? "Hello! I am your Pixous HR Assistant 🤖. How can I help you today with your leaves, attendance, payroll, or tasks?"
+               : leave ? "You can check your leave balance and apply for leave under Requests > Balance and Requests > Leave."
+               : attendance ? "Attendance is recorded automatically via the biometric terminal. You can view your logs and working hours in the 'Attendance' tab."
+               : task ? "You can view, update, and assign tasks under More > Tasks."
+               : pay ? "You can view and download your monthly payslips under More > Payroll."
+               : claim ? "You can submit and track expense claims under More > Claims."
+               : asset ? "Company devices and equipment assigned to you are listed under the 'Assets' menu."
+               : "I'm the Pixous HR Assistant. Ask me about your leave, attendance, tasks, payslips, or company policies."
         };
     }
 

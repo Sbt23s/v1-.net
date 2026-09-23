@@ -165,8 +165,11 @@ public sealed class CommunityController : ControllerBase
 
     [HttpPost("{id:long}/voice")]
     public async Task<IActionResult> SendVoice(
-        long id, IFormFile? file, CancellationToken ct)
+        long id, CancellationToken ct)
     {
+        var file = Request.HasFormContentType && Request.Form.Files.Count > 0
+            ? Request.Form.Files[0]
+            : null;
         if (file is null || file.Length == 0) return BadRequest(new { message = "Audio file required." });
         using var stream = file.OpenReadStream();
         await _bal.SendVoiceAsync(id, _currentUser.RequireUserId(), stream, file.FileName, file.ContentType, ct);
@@ -175,8 +178,10 @@ public sealed class CommunityController : ControllerBase
 
     [HttpPost("{id:long}/attachments")]
     public async Task<IActionResult> SendAttachments(
-        long id, IFormFileCollection files, [FromForm] string? caption, CancellationToken ct)
+        long id, [FromQuery] string? caption, CancellationToken ct)
     {
+        var effectiveCaption = caption ?? (Request.HasFormContentType ? Request.Form["caption"].FirstOrDefault() : null);
+        var files = Request.HasFormContentType ? Request.Form.Files : null;
         if (files is null || files.Count == 0) return BadRequest(new { message = "Files required." });
         var list = new List<(Stream, string, string)>();
         foreach (var f in files)
@@ -186,7 +191,7 @@ public sealed class CommunityController : ControllerBase
 
         try
         {
-            await _bal.SendAttachmentsAsync(id, _currentUser.RequireUserId(), list, caption, ct);
+            await _bal.SendAttachmentsAsync(id, _currentUser.RequireUserId(), list, effectiveCaption, ct);
             return Ok();
         }
         finally

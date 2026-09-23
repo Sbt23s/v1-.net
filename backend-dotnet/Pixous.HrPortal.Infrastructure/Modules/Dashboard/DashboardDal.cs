@@ -225,4 +225,11 @@ public sealed class DashboardDal : DalBase, IDashboardDal
 
         return map;
     }
+
+    public async Task<IReadOnlyList<long>> FindApprovedWfhUserIdsOnAsync(
+        DateOnly date, CancellationToken ct = default) =>
+        (await QueryAsync(conn => conn.QueryAsync<long>(
+            new CommandDefinition(
+                "SELECT user_id FROM wfh_requests WHERE UPPER(status) = 'APPROVED' AND @date BETWEEN from_date AND to_date",
+                new { date }, cancellationToken: ct)), ct)).AsList();
 }

@@ -9,18 +9,35 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/context/AuthContext";
 import "./index.css";
 
-// Auto-clear reload flag
+// Auto-clear reload flag on load
 sessionStorage.removeItem("chunk_reload_attempted");
 
-// Handle Vite dynamic import preload failures globally
+// In development, unregister any production service worker that may intercept Vite requests
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const r of registrations) {
+      r.unregister();
+    }
+  }).catch(() => {});
+}
+
+// Handle Vite dynamic import preload failures globally without infinite reload loops
 window.addEventListener("vite:preloadError", () => {
-  window.location.reload();
+  const lastReload = Number(sessionStorage.getItem("vite_preload_last") || 0);
+  if (Date.now() - lastReload > 10000) {
+    sessionStorage.setItem("vite_preload_last", String(Date.now()));
+    window.location.reload();
+  }
 });
 
 // Handle uncaught module import errors
 window.addEventListener("error", (e) => {
   if (e.message?.includes("Failed to fetch dynamically imported module")) {
-    window.location.reload();
+    const lastReload = Number(sessionStorage.getItem("chunk_err_last") || 0);
+    if (Date.now() - lastReload > 10000) {
+      sessionStorage.setItem("chunk_err_last", String(Date.now()));
+      window.location.reload();
+    }
   }
 });
 

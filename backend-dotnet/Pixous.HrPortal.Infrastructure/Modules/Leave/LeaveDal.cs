@@ -131,20 +131,23 @@ public sealed class LeaveDal : DalBase, ILeaveDal
                 new { from, to }, cancellationToken: ct)), ct)).AsList();
 
     private const string BalanceColumns = """
-        id            AS Id,
-        user_id       AS UserId,
-        leave_type_id AS LeaveTypeId,
-        year          AS Year,
-        allocated     AS Allocated,
-        used          AS Used
+        b.id            AS Id,
+        b.user_id       AS UserId,
+        b.leave_type_id AS LeaveTypeId,
+        COALESCE(t.name, '') AS LeaveTypeName,
+        COALESCE(t.code, '') AS LeaveTypeCode,
+        b.year          AS Year,
+        b.allocated     AS Allocated,
+        b.used          AS Used
         """;
 
     public Task<LeaveBalanceRecord?> FindBalanceAsync(long userId, long leaveTypeId, int year,
                                                       CancellationToken ct = default) =>
         QueryAsync(conn => conn.QueryFirstOrDefaultAsync<LeaveBalanceRecord>(
             new CommandDefinition($"""
-                SELECT {BalanceColumns} FROM leave_balances
-                WHERE user_id = @userId AND leave_type_id = @leaveTypeId AND year = @year
+                SELECT {BalanceColumns} FROM leave_balances b
+                LEFT JOIN leave_types t ON b.leave_type_id = t.id
+                WHERE b.user_id = @userId AND b.leave_type_id = @leaveTypeId AND b.year = @year
                 LIMIT 1
                 """,
                 new { userId, leaveTypeId, year }, cancellationToken: ct)), ct);
@@ -153,9 +156,10 @@ public sealed class LeaveDal : DalBase, ILeaveDal
         long userId, int year, CancellationToken ct = default) =>
         (await QueryAsync(conn => conn.QueryAsync<LeaveBalanceRecord>(
             new CommandDefinition($"""
-                SELECT {BalanceColumns} FROM leave_balances
-                WHERE user_id = @userId AND year = @year
-                ORDER BY leave_type_id
+                SELECT {BalanceColumns} FROM leave_balances b
+                LEFT JOIN leave_types t ON b.leave_type_id = t.id
+                WHERE b.user_id = @userId AND b.year = @year
+                ORDER BY b.leave_type_id
                 """,
                 new { userId, year }, cancellationToken: ct)), ct)).AsList();
 

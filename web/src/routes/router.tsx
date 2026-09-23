@@ -6,7 +6,7 @@ import { RoleGuard } from "@/components/layout/RoleGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PixousLoader } from "@/components/ui/pixous-loader";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 // Login stays eagerly imported. It is the first thing an unauthenticated visitor
@@ -14,6 +14,34 @@ import { useAuth } from "@/hooks/useAuth";
 // appears -- the opposite of what the splitting below is for.
 import LoginPage from "@/pages/Login";
 import NotFoundPage from "@/pages/NotFound";
+
+function isChunkLoadError(error: any): boolean {
+  if (!error) return false;
+  const msg = error?.message || String(error);
+  return (
+    msg.includes("Failed to fetch dynamically imported module") ||
+    msg.includes("Importing a module script failed") ||
+    error?.name === "ChunkLoadError"
+  );
+}
+
+async function handleHardRefresh() {
+  try {
+    sessionStorage.removeItem("chunk_reload_attempted");
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    }
+  } catch (e) {
+    console.error("Cache purge failed:", e);
+  } finally {
+    window.location.reload();
+  }
+}
 
 function safeLazy<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
@@ -24,14 +52,9 @@ function safeLazy<T extends React.ComponentType<any>>(
       sessionStorage.removeItem("chunk_reload_attempted");
       return component;
     } catch (error: any) {
-      const isChunkError =
-        error?.message?.includes("Failed to fetch dynamically imported module") ||
-        error?.name === "TypeError" ||
-        String(error).includes("Importing a module script failed");
-
-      if (isChunkError && !sessionStorage.getItem("chunk_reload_attempted")) {
+      if (isChunkLoadError(error) && !sessionStorage.getItem("chunk_reload_attempted")) {
         sessionStorage.setItem("chunk_reload_attempted", "true");
-        window.location.reload();
+        await handleHardRefresh();
         return new Promise(() => {});
       }
       throw error;
@@ -39,43 +62,71 @@ function safeLazy<T extends React.ComponentType<any>>(
   });
 }
 
-class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+class RouteErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Route Error:", error, errorInfo);
-    if (
-      error?.message?.includes("Failed to fetch dynamically imported module") ||
-      String(error).includes("Importing a module script failed")
-    ) {
+    if (isChunkLoadError(error)) {
       if (!sessionStorage.getItem("chunk_reload_attempted")) {
         sessionStorage.setItem("chunk_reload_attempted", "true");
-        window.location.reload();
+        handleHardRefresh();
       }
     }
   }
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
+      const isChunk = isChunkLoadError(this.state.error);
+
+      if (isChunk) {
+        return (
+          <div className="flex h-full w-full min-h-[50vh] flex-col items-center justify-center p-6 text-center">
+            <div className="rounded-full bg-primary/10 p-4 text-primary mb-4 animate-spin">
+              <RefreshCw className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Updating Application...</h2>
+            <p className="text-sm text-muted-foreground max-w-md mb-4">
+              A new version of the HR Portal has been deployed. Please refresh to load the latest features.
+            </p>
+            <Button onClick={handleHardRefresh} variant="default">
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh Application
+            </Button>
+          </div>
+        );
+      }
+
       return (
         <div className="flex h-full w-full min-h-[50vh] flex-col items-center justify-center p-6 text-center">
           <div className="rounded-full bg-destructive/10 p-4 text-destructive mb-4">
-            <RefreshCw className="h-8 w-8" />
+            <AlertTriangle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold mb-2">Updating Application...</h2>
+          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
           <p className="text-sm text-muted-foreground max-w-md mb-4">
-            A new version of the HR Portal has been deployed. Please refresh to load the latest features.
+            {this.state.error?.message || "An unexpected error occurred while loading this page."}
           </p>
-          <Button onClick={() => window.location.reload()} variant="default">
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh Application
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={this.handleReset} variant="outline">
+              Try Again
+            </Button>
+            <Button onClick={() => (window.location.href = "/")} variant="default">
+              Go to Dashboard
+            </Button>
+          </div>
         </div>
       );
     }
