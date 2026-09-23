@@ -120,8 +120,8 @@ class RouteErrorBoundary extends Component<
             {this.state.error?.message || "An unexpected error occurred while loading this page."}
           </p>
           <div className="flex items-center gap-3">
-            <Button onClick={this.handleReset} variant="outline">
-              Try Again
+            <Button onClick={() => window.location.reload()} variant="outline">
+              <RefreshCw className="mr-2 h-4 w-4" /> Reload Page
             </Button>
             <Button onClick={() => (window.location.href = "/")} variant="default">
               Go to Dashboard

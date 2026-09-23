@@ -985,7 +985,7 @@ function TasksQuickCard() {
                 const c = countByDesig.get(d.id) ?? 0;
                 return (
                   <option key={d.id} value={d.id} disabled={c === 0}>
-                    {d.label} ({c})
+                    {d.label || (d as any)?.name || `Team ${d.id}`} ({c})
                   </option>
                 );
               })}

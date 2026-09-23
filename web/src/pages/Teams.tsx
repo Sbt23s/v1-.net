@@ -191,9 +191,12 @@ export default function TeamsPage() {
       if (!g) { g = { label, members: [], assignable }; byLabel.set(key, g); order.push(g); }
       return g;
     };
-    for (const d of designations.data ?? []) ensure(d.label, true);
+    for (const d of designations.data ?? []) {
+      const lbl = String(d?.label || (d as any)?.name || "").trim();
+      if (lbl) ensure(lbl, true);
+    }
     for (const e of employees.data ?? []) {
-      const title = (e.designationTitle || "").trim();
+      const title = String(e?.designationTitle || "").trim();
       ensure(title || NO_DESIGNATION, !!title).members.push(e);
     }
     return order;
@@ -212,16 +215,16 @@ export default function TeamsPage() {
     // leader from elsewhere has been assigned to cover it. Counting only the
     // first would keep reporting QA Testing as leaderless after somebody had
     // been put in charge of it.
-    const assignedTo = (label: string) =>
+    const assignedTo = (label?: string | null) =>
       (extraLeads.data ?? []).filter(
-        (x) => (x.teamTitle || "").trim().toLowerCase() === label.trim().toLowerCase());
+        (x) => norm(x?.teamTitle) === norm(label));
     const leadsIn = (d: typeof assignable[number]) =>
       d.members.filter((m) => (m.roles ?? []).includes("IT_TL"));
     const hasLead = (d: typeof assignable[number]) =>
       leadsIn(d).length > 0 || assignedTo(d.label).length > 0;
     const withoutLead = assignable.filter((d) => !hasLead(d));
     const empty = assignable.filter((d) => d.members.length === 0);
-    const inTeams = people.filter((p) => (p.designationTitle || "").trim()).length;
+    const inTeams = people.filter((p) => String(p?.designationTitle || "").trim()).length;
 
     return {
       teams: assignable.length,
@@ -234,8 +237,8 @@ export default function TeamsPage() {
       absent: people.filter((p) => !present.has(p.id)).length,
       avg: assignable.length ? Math.round((inTeams / assignable.length) * 10) / 10 : 0,
       biggest: sized[0],
-      withoutLead: withoutLead.map((d) => d.label),
-      empty: empty.map((d) => d.label)
+      withoutLead: withoutLead.map((d) => d.label || NO_DESIGNATION),
+      empty: empty.map((d) => d.label || NO_DESIGNATION)
     };
   }, [groups, employees.data, attendance.data, extraLeads.data]);
 
@@ -272,8 +275,8 @@ export default function TeamsPage() {
   }, [teamSummary]);
 
   const loading = designations.isLoading || employees.isLoading;
-  const q = search.trim().toLowerCase();
-  const list = groups.filter((d) => !q || d.label.toLowerCase().includes(q));
+  const q = String(search ?? "").trim().toLowerCase();
+  const list = groups.filter((d) => !q || String(d?.label || "").toLowerCase().includes(q));
   // Paged with the numbers and rows-per-page, like every other listing.
   const listPaged = usePagedRows(list, 10, [search, groups.length]);
 
@@ -589,14 +592,14 @@ function parseSkills(raw?: string): Record<string, string> {
 /** Serialise the category map back to newline-separated "Label: value" lines. */
 function serializeSkills(map: Record<string, string>): string {
   return SKILL_CATEGORIES
-    .filter((c) => (map[c] || "").trim())
-    .map((c) => `${c}: ${map[c].trim()}`)
+    .filter((c) => String(map[c] || "").trim())
+    .map((c) => `${c}: ${String(map[c] || "").trim()}`)
     .join("\n");
 }
 
 function TechStackCell({ member, onSaved, editable = true }: { member: UserSummary; onSaved: () => void; editable?: boolean }) {
   const [open, setOpen] = useState(false);
-  const filled = SKILL_CATEGORIES.filter((c) => (parseSkills(member.techStack)[c] || "").trim()).length;
+  const filled = SKILL_CATEGORIES.filter((c) => String(parseSkills(member.techStack)[c] || "").trim()).length;
 
   if (!editable) {
     return (
@@ -845,10 +848,10 @@ function AddToDesignationDialog({ label, employees, onClose, onAdded }: {
     assign.mutate();
   };
 
-  const q = search.trim().toLowerCase();
+  const q = String(search ?? "").trim().toLowerCase();
   const candidates = employees
-    .filter((e) => norm(e.designationTitle) !== norm(label))
-    .filter((e) => !q || e.name.toLowerCase().includes(q) || (e.employeeCode || "").toLowerCase().includes(q))
+    .filter((e) => norm(e?.designationTitle) !== norm(label))
+    .filter((e) => !q || String(e?.name || "").toLowerCase().includes(q) || String(e?.employeeCode || "").toLowerCase().includes(q))
     .slice(0, 60);
 
   return (

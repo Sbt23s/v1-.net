@@ -1915,7 +1915,10 @@ function EmployeeWorkListSection({ fromDate, toDate, teamById }: { fromDate: str
    */
   const teamOptions = useMemo(() => {
     const set = new Set<string>();
-    (teamList.data ?? []).forEach((d) => { if (d.label?.trim()) set.add(d.label.trim()); });
+    (teamList.data ?? []).forEach((d) => {
+      const lbl = String(d?.label || (d as any)?.name || "").trim();
+      if (lbl) set.add(lbl);
+    });
     return Array.from(set).sort((x, y) => x.localeCompare(y));
   }, [teamList.data]);
 

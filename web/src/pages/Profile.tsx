@@ -163,7 +163,7 @@ export default function ProfilePage() {
   const p = profile.data;
 
   const labelFor = (items: DropdownItem[] | undefined, id?: number) =>
-    id == null ? undefined : items?.find((i) => i.id === id)?.label;
+    id == null ? undefined : (items?.find((i) => i.id === id)?.label || (items?.find((i) => i.id === id) as any)?.name);
   const deptName = p?.departmentTitle || labelFor(orgLookups.data?.department, p?.departmentId);
   const teamName = p?.designationTitle || labelFor(orgLookups.data?.designation, p?.designationId);
   const officeName = labelFor(orgLookups.data?.office_location, p?.officeLocationId);

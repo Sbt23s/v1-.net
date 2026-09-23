@@ -2736,7 +2736,7 @@ function AddEmployeeDialog({ onClose, defaultIndustry }: { onClose: () => void; 
   const teamChoices = useMemo(() => {
     const byKey = new Map<string, { label: string; id?: number }>();
     (dropdowns.data?.designation ?? []).forEach((d) => {
-      const label = (d.label ?? "").trim();
+      const label = String(d.label || (d as any)?.name || "").trim();
       if (label) byKey.set(label.toLowerCase(), { label, id: d.id });
     });
     return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label));

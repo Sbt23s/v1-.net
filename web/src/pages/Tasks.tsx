@@ -2336,9 +2336,12 @@ function AssignTaskDialog({
       if (!g) { g = { label, members: [] }; byLabel.set(k, g); order.push(g); }
       return g;
     };
-    (designations.data ?? []).forEach((d) => ensure(d.label));
+    (designations.data ?? []).forEach((d) => {
+      const lbl = String(d?.label || (d as any)?.name || "").trim();
+      if (lbl) ensure(lbl);
+    });
     (activeEmployees.data ?? []).forEach((e) => {
-      const t = (e.designationTitle || "").trim();
+      const t = String(e?.designationTitle || "").trim();
       if (!t) return;
       // HR assigns to Team Leaders only, so only leaders count as members.
       if (isHR && !isLeaderRole(e)) return;

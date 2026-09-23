@@ -47,7 +47,10 @@ public interface IOrgBal
 }
 
 /// <summary>One option in a dropdown: the id the form submits and the label it shows.</summary>
-public sealed record DropdownItem(long Id, string? Name);
+public sealed record DropdownItem(long Id, string? Name)
+{
+    public string? Label => Name;
+}
 
 /// <summary>A site or office location, with the geofence the attendance module uses.</summary>
 public sealed record GeoPlaceItem(
