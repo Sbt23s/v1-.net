@@ -824,7 +824,7 @@ function AddToDesignationDialog({ label, employees, onClose, onAdded }: {
   // An employee belongs to exactly one team. Assigning sets their designation
   // title to this team's name, moving them out of any team they were in.
   const selected = employees.find((e) => e.id === empId);
-  const currentTeam = (selected?.designationTitle || "").trim();
+  const currentTeam = String(selected?.designationTitle || "").trim();
 
   const assign = useMutation({
     mutationFn: async () => api.put(`/users/${empId}`, { designationTitle: label }),
@@ -872,7 +872,7 @@ function AddToDesignationDialog({ label, employees, onClose, onAdded }: {
                   <div className="text-sm font-medium">{c.name}</div>
                   <div className="text-xs text-muted-foreground">{c.employeeCode}</div>
                 </div>
-                {(c.designationTitle || "").trim()
+                {String(c?.designationTitle || "").trim()
                   ? <Badge className="shrink-0 border-0 bg-amber-100 text-amber-700 text-[10px] dark:bg-amber-900/30 dark:text-amber-400">In: {c.designationTitle}</Badge>
                   : <span className="shrink-0 text-[10px] text-muted-foreground">No team</span>}
                 {empId === c.id && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}

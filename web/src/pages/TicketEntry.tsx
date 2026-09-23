@@ -124,8 +124,8 @@ export default function TicketEntryPage() {
     Names now, as sent -- "Priya Raman (HR)", "CTO (PIX-E100)". Somebody
     choosing where to send a problem is choosing a person.
   */
-  const roleLabel = (u: { name?: string; designation?: string; code?: string }) =>
-    (u.name || "").trim() || (u.designation || "").trim() || "";
+  const roleLabel = (u?: { name?: string; designation?: string; code?: string } | null) =>
+    String(u?.name || "").trim() || String(u?.designation || "").trim() || "";
 
   /*
     No client-side filtering.

@@ -751,7 +751,7 @@ export default function ChatPage() {
     }
 
     // A poll carries its question in the text, so both are needed.
-    const options = (pollOptions || []).map((o) => o.trim()).filter(Boolean);
+    const options = (pollOptions || []).map((o) => String(o ?? "").trim()).filter(Boolean);
     if (pollOptions) {
       if (!draft.trim()) {
         toast.error("Type the poll question first.");

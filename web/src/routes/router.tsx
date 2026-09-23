@@ -127,6 +127,12 @@ class RouteErrorBoundary extends Component<
               Go to Dashboard
             </Button>
           </div>
+          {this.state.error?.stack && (
+            <details className="mt-4 max-w-xl text-left bg-muted/60 p-3 rounded text-xs font-mono text-muted-foreground overflow-auto max-h-40 w-full">
+              <summary className="cursor-pointer font-semibold mb-1">Technical Details</summary>
+              <pre className="whitespace-pre-wrap">{this.state.error.stack}</pre>
+            </details>
+          )}
         </div>
       );
     }

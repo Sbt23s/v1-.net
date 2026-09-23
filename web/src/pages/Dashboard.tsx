@@ -325,7 +325,7 @@ function PayslipApprovalsDialog({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const numOrUndef = (v: string) => (v.trim() === "" ? undefined : Number(v));
+  const numOrUndef = (v: any) => (String(v ?? "").trim() === "" ? undefined : Number(v));
 
   async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -2226,7 +2226,7 @@ export default function DashboardPage() {
   const showsCoverTitle = ["IT_EMP", "IT_TL", "CV_EMP", "CV_SUP"].some(
     (r) => user?.roles?.includes(r)
   );
-  const coverTitle = (
+  const coverTitle = String(
     myProfile.data?.designationTitle ||
     myProfile.data?.positionTitle ||
     ""
@@ -2329,7 +2329,7 @@ export default function DashboardPage() {
 
       const departmentBreakdown: Record<string, number> = {};
       people.forEach((u) => {
-        const team = (u.designationTitle || "Unassigned").trim();
+        const team = String(u?.designationTitle || "Unassigned").trim();
         departmentBreakdown[team] = (departmentBreakdown[team] ?? 0) + 1;
       });
 

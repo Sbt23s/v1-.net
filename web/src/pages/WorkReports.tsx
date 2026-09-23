@@ -84,7 +84,7 @@ export default function WorkReportsPage() {
   });
   const teamById = useMemo(() => {
     const m = new Map<number, string>();
-    (usersQ.data ?? []).forEach((u) => m.set(u.id, (u.designationTitle || "").trim()));
+    (usersQ.data ?? []).forEach((u) => m.set(u.id, String(u?.designationTitle || "").trim()));
     return m;
   }, [usersQ.data]);
 
@@ -402,7 +402,7 @@ function MyWorkReports({
   const [attaching, setAttaching] = useState<WorkReport | null>(null);
 
   function submit() {
-    if (!draft.projectName.trim()) {
+    if (!String(draft.projectName ?? "").trim()) {
       toast.error("Project name is required");
       return;
     }
@@ -417,7 +417,7 @@ function MyWorkReports({
     "29 Aug 2026" as the table prints it and 2026-08-29 as it is stored -- so
     typing either finds it.
   */
-  const needle = search.trim().toLowerCase();
+  const needle = String(search ?? "").trim().toLowerCase();
   const matches = (r: typeof allRows[number]) => {
     if (!needle) return true;
     return [
@@ -439,7 +439,7 @@ function MyWorkReports({
 
   // ---- Real, derived stats (no mock numbers) ----
   const stats = useMemo(() => {
-    const projectKey = (n: string) => n.trim().toLowerCase();
+    const projectKey = (n?: string | null) => String(n ?? "").trim().toLowerCase();
     const projectNames = new Map<string, string>();
     rows.forEach((r) => {
       const k = projectKey(r.projectName || "Unspecified");
@@ -940,8 +940,8 @@ function MyWorkReports({
             ) : rows.length === 0 ? (
               <EmptyState
                 icon={ClipboardList}
-                title={search.trim() ? "Nothing matches that search" : "No entries yet"}
-                description={search.trim()
+                title={String(search ?? "").trim() ? "Nothing matches that search" : "No entries yet"}
+                description={String(search ?? "").trim()
                   ? "Try a different word, or clear the search to see everything."
                   : "Add your first work report using the form above."}
               />
@@ -1626,7 +1626,7 @@ function TeamWorkReports({ fromDate, toDate }: { fromDate: string; toDate: strin
       and read as the search being broken rather than narrow. The date is
       matched in both the shape the table prints and the one it is stored in.
     */
-    const needle = q.trim().toLowerCase();
+    const needle = String(q ?? "").trim().toLowerCase();
     const filtered = needle
       ? out.filter((r) => [
           r.employeeName,
@@ -1650,7 +1650,7 @@ function TeamWorkReports({ fromDate, toDate }: { fromDate: string; toDate: strin
   // Headline numbers for the team over the chosen range.
   const stats = useMemo(() => {
     const people = new Set(rows.map((r) => r.employeeCode));
-    const projects = new Set(rows.map((r) => r.projectName.trim().toLowerCase()).filter(Boolean));
+    const projects = new Set(rows.map((r) => String(r.projectName ?? "").trim().toLowerCase()).filter(Boolean));
     const days = new Set(rows.map((r) => r.workDate));
     // Everyone on the team, whether or not they logged anything in this range.
     const teamSize = (team.data ?? []).length;
@@ -1687,7 +1687,7 @@ function TeamWorkReports({ fromDate, toDate }: { fromDate: string; toDate: strin
       };
       e.hours += Number(r.workHours) || 0;
       e.entries += 1;
-      const p = r.projectName.trim();
+      const p = String(r.projectName ?? "").trim();
       if (p && !e.projects.some((x) => x.toLowerCase() === p.toLowerCase())) e.projects.push(p);
       if (!e.lastDate || r.workDate > e.lastDate) e.lastDate = r.workDate;
       byCode.set(r.employeeCode, e);
@@ -1932,9 +1932,9 @@ function EmployeeWorkListSection({ fromDate, toDate, teamById }: { fromDate: str
         }
       });
     });
-    const query = q.trim().toLowerCase();
+    const query = String(q ?? "").trim().toLowerCase();
     const filtered = query
-      ? flat.filter((r) => r.employeeName.toLowerCase().includes(query) || (r.employeeCode || "").toLowerCase().includes(query))
+      ? flat.filter((r) => String(r.employeeName || "").toLowerCase().includes(query) || String(r.employeeCode || "").toLowerCase().includes(query))
       : flat;
     // Newest date first; then team, then employee.
     return filtered.sort((a, b) =>
@@ -1953,7 +1953,7 @@ function EmployeeWorkListSection({ fromDate, toDate, teamById }: { fromDate: str
   const totalHours = rows.reduce((s, r) => s + (Number(r.workHours) || 0), 0);
 
   const stats = useMemo(() => {
-    const projects = new Set(rows.map((r) => r.projectName.trim().toLowerCase()).filter(Boolean));
+    const projects = new Set(rows.map((r) => String(r.projectName ?? "").trim().toLowerCase()).filter(Boolean));
     const days = new Set(rows.map((r) => r.workDate));
     const reported = new Set(rows.map((r) => r.employeeCode));
     // Everyone who could report, over the same team filter as the table.
@@ -2150,7 +2150,7 @@ function EmployeeWorkListSection({ fromDate, toDate, teamById }: { fromDate: str
           <CardTitle>Employee Work Reports</CardTitle>
           <span className="text-xs text-muted-foreground">
             {team === "all" ? "Every team" : team}
-            {q.trim() && ` · matching “${q.trim()}”`}
+            {String(q ?? "").trim() && ` · matching “${String(q ?? "").trim()}”`}
           </span>
         </div>
       </CardHeader>
